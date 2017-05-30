@@ -24,16 +24,16 @@ $HtmlHead="<html>
 
 ## Gather summary info
 $htmltableheader = "<h2>Summary</h2>
-						<p>
-						<table>
-						<tr>
-						<th>Sites</th>
-						<th>Pools</th>
-						<th>Trunks</th>
-						<th>Users</th>
-						<th>Voice Users</th>
-						<th>RCC Users</th>
-						</tr>"
+					<p>
+					<table>
+					<tr>
+					<th>Sites</th>
+					<th>Pools</th>
+					<th>Trunks</th>
+					<th>Users</th>
+					<th>Voice Users</th>
+					<th>RCC Users</th>
+					</tr>"
 
 $summaryHtmlTable = $htmlTableHeader
 
@@ -60,16 +60,16 @@ $SummaryHtml = $summaryHtmlTable + "</table></p>"
 
 ## Gather sites info
 $htmltableheader = "<h2>Summary</h2>
-						<p>
-						<table>
-						<tr>
-						<th>Sites</th>
-						<th>Pools</th>
-						<th>Trunks</th>
-						<th>Users</th>
-						<th>Voice Users</th>
-						<th>RCC Users</th>
-						</tr>"
+					<p>
+					<table>
+					<tr>
+					<th>Sites</th>
+					<th>Pools</th>
+					<th>Trunks</th>
+					<th>Users</th>
+					<th>Voice Users</th>
+					<th>RCC Users</th>
+					</tr>"
 						
 $siteSummaryHtmlTable = $htmlTableHeader
 
@@ -88,11 +88,10 @@ foreach ($site in $sites){
 		$poolRccUsers = ($users | where {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true -and $_.Registrar -eq $pool.Fqdn}).Count
 		
 		$siteUsers = $siteUsers + $poolUsers
-
-
+		
 		## Begin list of servers by pool
 		$AllPoolServersHtml = "<h3>Pool Servers</h3>"
-
+		
 		foreach ($pool in $pools){
 			$htmlTableHeader = "<h3>$($pool.Fqdn)</h3>
 								<p>
@@ -140,7 +139,7 @@ foreach ($site in $sites){
 				$htmlTableRow += "<td>$($entry.DnsCheck)</td>"
 				$htmlTableRow += "<td>$($entry.LastUpdate)</td>"
 				$htmlTableRow += "</tr>"
-			
+				
 				$poolServersHtmlTable = $poolServersHtmlTable + $htmlTableRow
 			}
 			
