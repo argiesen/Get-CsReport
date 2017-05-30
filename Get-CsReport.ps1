@@ -31,51 +31,17 @@ $HtmlHead="<html>
 		   td.info{background: #85D4FF;}
 		   </style>
 		   <body>
-		   <h1 align=""center"">Skype for Business 2015 Report</h1>
+		   <h1 align=""center"">Lync/Skype for Business Topology Report</h1>
 		   <h3 align=""center"">Generated: $reportime</h3>"
 
-
-
-
-
 ## Gather summary info
-<# $htmltableheader = "<h2>Summary</h2>
-					<p>
-					<table>
-					<tr>
-					<th>Sites</th>
-					<th>Pools</th>
-					<th>Trunks</th>
-					<th>Users</th>
-					<th>Voice Users</th>
-					<th>RCC Users</th>
-					</tr>"
-
-$summaryHtmlTable = $htmlTableHeader #>
-
 $htmltableheader = "<h2>Summary</h2>
 					<p>"
 
+## Collect users for global usage
 $users = Get-CsUser -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-<# $totalUsers = ($users | where {$_.Enabled -eq $true}).Count
-$totalEvUsers = ($users | where {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true}).Count
-$totalRccUsers = ($users | where {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true}).Count
-$totalRegistrarPools = (Get-CsPool | where Services -match "Registrar").Count
-$totalSites = (Get-CsSite).Count
-$totalTrunks = (Get-CsTrunk).Count
 
-$htmlTableRow = "<tr>"
-$htmlTableRow += "<td>$($totalSites)</td>"
-$htmlTableRow += "<td>$($totalRegistrarPools)</td>"
-$htmlTableRow += "<td>$($totalTrunks)</td>"
-$htmlTableRow += "<td>$($totalUsers)</td>"
-$htmlTableRow += "<td>$($totalEvUsers)</td>"
-$htmlTableRow += "<td>$($totalRccUsers)</td>"
-$htmlTableRow += "</tr>"
-
-$summaryHtmlTable = $summaryHtmlTable + $htmlTableRow
-$SummaryHtml = $summaryHtmlTable + "</table></p>" #>
-
+## Create global user summary table and populate
 $userSummary = "" | select Users,"Voice Users","RCC Users",Pools,Sites,Trunks
 $userSummary.Users = ($users | where {$_.Enabled -eq $true}).Count
 $userSummary."Voice Users" = ($users | where {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true}).Count
@@ -84,29 +50,16 @@ $userSummary.Pools = (Get-CsPool | where Services -match "Registrar").Count
 $userSummary.Sites = (Get-CsSite).Count
 $userSummary.Trunks = (Get-CsTrunk).Count
 
+## Convert global user summary table to HTML and combine with body
 $SummaryHtml = $htmltableheader + ($userSummary | ConvertTo-Html -As Table -Fragment)
 
 ## Gather sites info
-<# $htmltableheader = "<h2>Summary</h2>
-					<p>
-					<table>
-					<tr>
-					<th>Sites</th>
-					<th>Pools</th>
-					<th>Trunks</th>
-					<th>Users</th>
-					<th>Voice Users</th>
-					<th>RCC Users</th>
-					</tr>"
-					
-$siteSummaryHtmlTable = $htmlTableHeader #>
-
-#$sites = Get-CsSite
-$sites = Get-CsSite | select Identity,@{l='Name';e={$_.DisplayName}},Pools,Trunks,Users,"Voice Users","RCC Users"
+$sites = Get-CsSite | select Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Trunks
 $pools = Get-CsPool | where Services -match "Registrar|PersistentChatServer|MediationServer|Director"
 
+## Process each site in topology for site summary, then server summary
 foreach ($site in $sites){
-	$sitePools = $pools | where {$_.Site -eq $site.Identity} | select @{l='Name';e={$_.Fqdn}},Services,Pools,Users,"Voice Users","RCC Users"
+	$sitePools = $pools | where {$_.Site -eq $site.Identity} | select @{l='Name';e={$_.Fqdn}},Services,Users,"Voice Users","RCC Users"
 	$site.Users = 0
 	$site."Voice Users" = 0
 	$site."RCC Users" = 0
@@ -117,39 +70,22 @@ foreach ($site in $sites){
 	$siteServersHtml = "<h3>$($Site.Name) Servers</h3>
 						<p>"
 	
+	## If pools exist in site, process pools for servers
 	if ($sitePools){
-		## Begin list of pools by site
+		## Process pools in site
 		foreach ($pool in $sitePools){
 			#$pool.Name = $pool.Fqdn
-			$pool.Users = ($users | where {$_.Enabled -eq $true -and $_.Registrar -eq $pool.Name}).Count
-			$pool."Voice Users" = ($users | where {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true -and $_.Registrar -eq $pool.Name}).Count
-			$pool."RCC Users" = ($users | where {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true -and $_.Registrar -eq $pool.Name}).Count
+			$pool.Users = ($users | where {$_.Enabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
+			$pool."Voice Users" = ($users | where {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
+			$pool."RCC Users" = ($users | where {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
 			
 			$site.Users = $site.Users + $pool.Users
 			$site."Voice Users" = $site."Voice Users" + $pool."Voice Users"
 			$site."RCC Users" = $site."RCC Users" + $pool."RCC Users"
 			
-			## Begin list of servers by pool
-			#$AllPoolServersHtml = "<h3>Pool Servers</h3>"
-			
-			<# $htmlTableHeader = "<table>
-								<tr>
-								<th>Pool FQDN</th>
-								<th>Server FQDN</th>
-								<th>CPU Cores</th>
-								<th>Memory</th>
-								<th>Power Plan</th>
-								<th>Uptime</th>
-								<th>OS</th>
-								<th>.NET Framework</th>
-								<th>DNS</th>
-								<th>Last Update</th>
-								</tr>"
-			
-			$poolServersHtmlTable = $htmlTableHeader #>
-			
 			$servers = (Get-CsPool $pool.Name).Computers | select Pool,@{l='Server';e={$_}},Role,Sockets,Cores,Memory,"Power Plan",Uptime,"Operating System",".NET Framework",DnsCheck,"Last Update"
 			
+			## Process servers in pool
 			foreach ($server in $servers){
 				<# $entry = "" | select ServerFqdn,CpuCores,Memory,PowerPlan,Uptime,OSVersion,NetFrameworkVersion,DnsCheck,LastUpdate
 				$entry.ServerFqdn = $server #>
@@ -177,31 +113,14 @@ foreach ($site in $sites){
 					if (Resolve-DnsName $server.Server -DnsOnly -Type A -QuickTimeout){$server.DnsCheck = "Pass"}else{$server.DnsCheck = "Fail"}
 					$server."Last Update" = ((Get-HotFix -ComputerName $server.Server | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue)[0]).InstalledOn -f "MM.dd.yy"
 				}
-				
-				<# $htmlTableRow = "<tr>"
-				$htmlTableRow += "<td>$($pool.Fqdn)</td>"
-				$htmlTableRow += "<td>$($entry.ServerFqdn)</td>"
-				$htmlTableRow += "<td>$($entry.CpuCores)</td>"
-				$htmlTableRow += "<td>$($entry.Memory)</td>"
-				$htmlTableRow += "<td>$($entry.PowerPlan)</td>"
-				$htmlTableRow += "<td>$($entry.Uptime)</td>"
-				$htmlTableRow += "<td>$($entry.OSVersion)</td>"
-				$htmlTableRow += "<td>$($entry.NetFrameworkVersion)</td>"
-				$htmlTableRow += "<td>$($entry.DnsCheck)</td>"
-				$htmlTableRow += "<td>$($entry.LastUpdate)</td>"
-				$htmlTableRow += "</tr>"
-				
-				$poolServersHtmlTable = $poolServersHtmlTable + $htmlTableRow #>
 			}
-			<# $poolServersHtmlTable = $poolServersHtmlTable + "</table></p>"
-			$AllPoolServersHtml = $AllPoolServersHtml + $poolServersHtmlTable #>
 			
+			## Aggregate servers from each pool in site
 			$siteServers += $servers
-		} ## Close list of pools by site
+		}
 		
-		$site
-		
-		$SummaryHtml = $SummaryHtml + $siteServersHtml + ($site | select Name,Pools,Trunks,Users,"Voice Users","RCC Users" | ConvertTo-Html -As Table -Fragment) + "<p>" + ($siteServers | ConvertTo-Html -As Table -Fragment)
+		## Convert site header, site summary, and site server summary to HTML and combine with body
+		$SummaryHtml = $SummaryHtml + $siteServersHtml + ($site | select * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + "<p>" + ($siteServers | ConvertTo-Html -As Table -Fragment)
 	}
 }
 
