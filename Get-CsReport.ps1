@@ -92,24 +92,23 @@ foreach ($site in $sites){
 		## Begin list of servers by pool
 		$AllPoolServersHtml = "<h3>Pool Servers</h3>"
 		
+		$htmlTableHeader = "<table>
+							<tr>
+							<th>Pool FQDN</th>
+							<th>Server FQDN</th>
+							<th>CPU Cores</th>
+							<th>Memory</th>
+							<th>Power Plan</th>
+							<th>Uptime</th>
+							<th>OS</th>
+							<th>.NET Framework</th>
+							<th>DNS</th>
+							<th>Last Update</th>
+							</tr>"
+			
+		$poolServersHtmlTable = $htmlTableHeader
+		
 		foreach ($pool in $pools){
-			$htmlTableHeader = "<h3>$($pool.Fqdn)</h3>
-								<p>
-								<table>
-								<tr>
-								<th>Server FQDN</th>
-								<th>CPU Cores</th>
-								<th>Memory</th>
-								<th>Power Plan</th>
-								<th>Uptime</th>
-								<th>OS</th>
-								<th>.NET Framework</th>
-								<th>DNS</th>
-								<th>Last Update</th>
-								</tr>"
-			
-			$poolServersHtmlTable = $htmlTableHeader
-			
 			$servers = (Get-CsPool $pool.Fqdn).Computers
 			
 			foreach ($server in $servers){
@@ -129,6 +128,7 @@ foreach ($site in $sites){
 				}
 				
 				$htmlTableRow = "<tr>"
+				$htmlTableRow += "<td>$($pool.Fqdn)</td>"
 				$htmlTableRow += "<td>$($entry.ServerFqdn)</td>"
 				$htmlTableRow += "<td>$($entry.CpuCores)</td>"
 				$htmlTableRow += "<td>$($entry.Memory)</td>"
@@ -142,10 +142,10 @@ foreach ($site in $sites){
 				
 				$poolServersHtmlTable = $poolServersHtmlTable + $htmlTableRow
 			}
-			
-			$poolServersHtmlTable = $poolServersHtmlTable + "</table></p>"
-			$AllPoolServersHtml = $AllPoolServersHtml + $poolServersHtmlTable
 		} ## Close list of servers by pool
+		
+		$poolServersHtmlTable = $poolServersHtmlTable + "</table></p>"
+		$AllPoolServersHtml = $AllPoolServersHtml + $poolServersHtmlTable
 	} ## Close list of pools by site
 }
 
