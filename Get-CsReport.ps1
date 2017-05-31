@@ -37,7 +37,8 @@ $HtmlHead="<html>
 		   <h3 align=""center"">Generated: $reportime</h3>"
 
 ## Gather summary info
-$htmltableheader = "<h2>Global Summary</h2>"
+$htmltableheader = "<h2>Global Summary</h2>
+					<p></p>"
 
 ## Collect users for global usage
 $users = Get-CsUser -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
@@ -52,7 +53,7 @@ $userSummary.Sites = (Get-CsSite).Count
 $userSummary.Trunks = (Get-CsTrunk).Count
 
 ## Convert global user summary table to HTML and combine with body
-$SummaryHtml = $htmltableheader + ($userSummary | ConvertTo-Html -As Table -Fragment) + "<p>"
+$SummaryHtml = $htmltableheader + ($userSummary | ConvertTo-Html -As Table -Fragment) + "<p></p>"
 
 ## Gather sites info
 $sites = Get-CsSite | select Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Trunks
@@ -68,7 +69,8 @@ foreach ($site in $sites){
 	$site.Trunks = (Get-CsTrunk | where SiteId -eq $site.Identity).Count
 	$siteServers = @()
 	
-	$siteServersHtml = "<h3>$($Site.Name) Breakdown</h3>"
+	$siteServersHtml = "<h3>$($Site.Name) Breakdown</h3>
+						<p></p>"
 	
 	## If pools exist in site, process pools for servers
 	if ($sitePools){
@@ -139,7 +141,7 @@ foreach ($site in $sites){
 		}
 		
 		## Convert site header, site summary, and site server summary to HTML and combine with body
-		$SummaryHtml = $SummaryHtml + $siteServersHtml + ($site | select * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + ($siteServers | ConvertTo-Html -As Table -Fragment)
+		$SummaryHtml = $SummaryHtml + $siteServersHtml + "<p></p>" + ($site | select * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + "<p></p>" + ($siteServers | ConvertTo-Html -As Table -Fragment) + "<p></p>"
 	}
 }
 
