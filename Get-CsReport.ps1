@@ -28,9 +28,12 @@ $HtmlHead="<html>
 		   TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
 		   TD{border: 1px solid black; padding: 5px;}
 		   td.pass{background: #7FFF00;}
-		   td.warn{background: #FFE600;}
+		   td.warn{background: #FFFF00;}
 		   td.fail{background: #FF0000; color: #ffffff;}
 		   td.info{background: #85D4FF;}
+		   td.none{}
+		   tr:nth-child(even){background: #dae5f4;}
+		   tr:nth-child(odd){background: #b8d1f3;}
 		   </style>
 		   <body>
 		   <h1 align=""center"">Lync/Skype for Business Topology Report</h1>
@@ -85,7 +88,21 @@ foreach ($site in $sites){
 			$site."Voice Users" = $site."Voice Users" + $pool."Voice Users"
 			$site."RCC Users" = $site."RCC Users" + $pool."RCC Users"
 			
-			$servers = (Get-CsPool $pool.Name).Computers | select Pool,@{l='Server';e={$_}},Role,Hardware,vmToolsStatus,Sockets,Cores,Memory,"Power Plan","Uptime (Hours)","Operating System",".NET Framework",DnsCheck,"Last Update"
+			$servers = (Get-CsPool $pool.Name).Computers | Select-Object `
+				Pool,@{l='Server';e={$_}},`
+				Role,`
+				Hardware,`
+				vmTools,`
+				Sockets,`
+				Cores,`
+				Memory,`
+				PowerPlan,`
+				Uptime,`
+				OS,`
+				DotNet,`
+				DnsCheck,`
+				LastUpdate,`
+				Connectivity
 			
 			## Process servers in pool
 			foreach ($server in $servers){
@@ -101,7 +118,8 @@ foreach ($site in $sites){
 					$server.Role = "Mediation"
 				}
 				$server.Pool = $pool.Name
-				if (Test-Connection -ComputerName $server.Server -Count 1 -ErrorAction SilentlyContinue){
+				$server.Connectivity = Test-Connection -ComputerName $server.Server -Count 1 -ErrorAction SilentlyContinue
+				if ($server.Connectivity){
 					$computer = Get-WmiObject Win32_ComputerSystem
 					if ($computer.Manufacturer -match "VMware"){
 						$server.Hardware = "VMware"
@@ -111,28 +129,30 @@ foreach ($site in $sites){
 						$server.Hardware = "Physical"
 					}
 					if ($server.Hardware -eq "VMware"){
-						$server.vmToolsStatus = Invoke-Command -ComputerName $server.Server -ScriptBlock {Set-Location (Get-Item "HKLM:\Software\VMware, Inc.\VMware Tools").GetValue("InstallPath");Invoke-Expression ".\VMwareToolboxCmd.exe upgrade status"}
-						if (!($server.vmToolsStatus)){
-							$server.vmToolsStatus = "Not Installed"
-						}elseif ($server.vmToolsStatus -match "up-to-date"){
-							$server.vmToolsStatus = "Up-to-date"
+						$server.vmTools = Invoke-Command -ComputerName $server.Server -ScriptBlock {Set-Location (Get-Item "HKLM:\Software\VMware, Inc.\VMware Tools").GetValue("InstallPath");Invoke-Expression ".\VMwareToolboxCmd.exe upgrade status"}
+						if (!($server.vmTools)){
+							$server.vmTools = "Not Installed"
+						}elseif ($server.vmTools -match "up-to-date"){
+							$server.vmTools = "Up-to-date"
 						}else{
-							$server.vmToolsStatus = "Update available"
+							$server.vmTools = "Update available"
 						}
+					}else{
+						$server.vmTools = "N/A"
 					}
 					$processors = Get-WmiObject Win32_Processor -ComputerName $server.Server | Select Name,MaxClockSpeed,CurrentClockSpeed,NumberOfCores,NumberOfLogicalProcessors
 					$server.Sockets = $processors.Count
 					if (!($server.Sockets)){$server.Sockets = 1}
 					$server.Cores = $processors[0].NumberOfCores * ($processors | measure).Count
-					$server.Memory = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server | select @{l='TotalMemory';e={"{0:N2}GB" -f ($_.TotalVisibleMemorySize/1MB)}}).TotalMemory
-					$server."Power Plan" = (Get-WmiObject Win32_PowerPlan -ComputerName $server.Server -Namespace root\cimv2\power -Filter "IsActive='$true'").ElementName
+					$server.Memory = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server | select @{l='TotalMemory';e={"{0:N2}" -f ($_.TotalVisibleMemorySize/1MB)}}).TotalMemory
+					$server.PowerPlan = (Get-WmiObject Win32_PowerPlan -ComputerName $server.Server -Namespace root\cimv2\power -Filter "IsActive='$true'").ElementName
 					$boot = Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server
-					$server."Uptime (Hours)" = (($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Days * 24) + ($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours
-					$server."Operating System" = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server).Caption
-					$server.".NET Framework" = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
-					$server.".NET Framework" = $VersionHashNDP.Item($server.".NET Framework")
+					$server.Uptime = (($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Days * 24) + ($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours
+					$server.OS = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server).Caption
+					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
+					$server.DotNet = $VersionHashNDP.Item($server.DotNet)
 					if (Resolve-DnsName $server.Server -DnsOnly -Type A -QuickTimeout){$server.DnsCheck = "Pass"}else{$server.DnsCheck = "Fail"}
-					$server."Last Update" = (((Get-HotFix -ComputerName $server.Server | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue)[0]).InstalledOn).ToString("MM/dd/yyyy")
+					$server.LastUpdate = (((Get-HotFix -ComputerName $server.Server | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue)[0]).InstalledOn).ToString("MM/dd/yyyy")
 				}
 			}
 			
@@ -140,8 +160,80 @@ foreach ($site in $sites){
 			$siteServers += $servers
 		}
 		
+		$htmlTableHeader = "<table>
+							<tr>
+							<th>Pool</th>
+							<th>Server</th>
+							<th>Hardware</th>
+							<th>VMware Tools</th>
+							<th>Sockets</th>
+							<th>Cores</th>
+							<th>Memory</th>
+							<th>Power Plan</th>
+							<th>Uptime</th>
+							<th>OS</th>
+							<th>.NET Framework</th>
+							<th>DNS</th>
+							<th>Last Update</th>
+							</tr>"
+							
+		$siteServersHtmlTable = $htmlTableHeader
+		
+		foreach ($server in $siteServers){
+			$style = "" | select Server,Hardware,vmTools,Sockets,Cores,Memory,PowerPlan,Uptime,OS,DotNet,DNS,LastUpdate
+			if ($server.Connectivity){
+				$style.Hardware = "none"
+				if ($server.vmTools -match "Up-to-date"){$style.vmTools = "none"}elseif($server.vmTools -match "Not Installed"){$style.vmTools = "fail"}else{$style.vmTools = "warn"}
+				if ($server.Sockets -gt 2){$style.Sockets = "warn"}else{$style.Sockets = "none"}
+				if (($server.Cores * $server.Sockets) -lt 6){$style.Cores = "warn"}else{$style.Cores = "none"}
+				if ($server.Memory -lt 16){$style.Memory = "warn"}else{$style.Memory = "none"}
+				if ($server.PowerPlan -eq "High Performance"){$style.PowerPlan = "none"}else{$style.PowerPlan = "fail"}
+				if ($server.Uptime -gt 2160){$style.Uptime = "warn"}else{$style.Uptime = "none"}
+				if ($server.OS -notmatch "Server (2016|2012|2012 R2|2008 R2)"){$style.OS = "fail"}else{$style.OS = "none"}
+				if ($server.DotNet -notmatch "(4.6.2|4.5.2)"){$style.DotNet = "warn"}else{$style.DotNet = "none"}
+				if ($server.DnsCheck -ne "Pass"){$style.DNS = "fail"}else{$style.DNS = "none"}
+				if ($server.LastUpdate -lt (Get-Date).addDays(-90)){$style.LastUpdate = "warn"}else{$style.LastUpdate = "none"}
+			}else{
+				$style.Server = "fail"
+				$style.Hardware = "none"
+				$style.vmTools = "none"
+				$style.Sockets = "none"
+				$style.Cores = "none"
+				$style.Memory = "none"
+				$style.PowerPlan = "none"
+				$style.Uptime = "none"
+				$style.OS = "none"
+				$style.DotNet = "none"
+				$style.DNS = "none"
+				$style.LastUpdate = "none"
+			}
+			
+			$htmlTableRow = "<tr>"
+			$htmlTableRow += "<td>$($server.Pool)</td>"
+			$htmlTableRow += "<td class=""$($style.Server)"">$($server.Server)</td>"
+			$htmlTableRow += "<td class=""$($style.Hardware)"">$($server.Hardware)</td>"
+			$htmlTableRow += "<td class=""$($style.vmTools)"">$($server.vmTools)</td>"
+			$htmlTableRow += "<td class=""$($style.Sockets)"">$($server.Sockets)</td>"
+			$htmlTableRow += "<td class=""$($style.Cores)"">$($server.Cores)</td>"
+			$htmlTableRow += "<td class=""$($style.Memory)"">$($server.Memory)GB</td>"
+			$htmlTableRow += "<td class=""$($style.PowerPlan)"">$($server.PowerPlan)</td>"
+			$htmlTableRow += "<td class=""$($style.Uptime)"">$($server.Uptime)</td>"
+			$htmlTableRow += "<td class=""$($style.OS)"">$($server.OS)</td>"
+			$htmlTableRow += "<td class=""$($style.DotNet)"">$($server.DotNet)</td>"
+			$htmlTableRow += "<td class=""$($style.DNS)"">$($server.DnsCheck)</td>"
+			$htmlTableRow += "<td class=""$($style.LastUpdate)"">$($server.LastUpdate)</td>"
+			$htmlTableRow += "</tr>"
+			
+			$siteServersHtmlTable = $siteServersHtmlTable + $htmlTableRow
+		}
+		
+		$siteServersHtmlTable = $siteServersHtmlTable + "</table></p>"
+		
+		#$siteServersHtmlTable
+		
 		## Convert site header, site summary, and site server summary to HTML and combine with body
-		$SummaryHtml = $SummaryHtml + $siteServersHtml + "<p></p>" + ($site | select * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + "<p></p>" + ($siteServers | ConvertTo-Html -As Table -Fragment) + "<p></p>"
+		#$SummaryHtml = $SummaryHtml + $siteServersHtml + "<p></p>" + ($site | select * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + "<p></p>" + ($siteServers | ConvertTo-Html -As Table -Fragment) + "<p></p>"
+		$SummaryHtml = $SummaryHtml + $siteServersHtml + "<p></p>" + ($site | select * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + "<p></p>" + $siteServersHtmlTable + "<p></p>"
 	}
 }
 
