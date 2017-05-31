@@ -152,7 +152,7 @@ foreach ($site in $sites){
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
 					$server.DotNet = $VersionHashNDP.Item($server.DotNet)
 					if (Resolve-DnsName $server.Server -DnsOnly -Type A -QuickTimeout){$server.DnsCheck = "Pass"}else{$server.DnsCheck = "Fail"}
-					$server.LastUpdate = (((Get-HotFix -ComputerName $server.Server | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue)[0]).InstalledOn).ToString("MM/dd/yyyy")
+					$server.LastUpdate = ((Get-HotFix -ComputerName $server.Server | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue)[0]).InstalledOn
 				}
 			}
 			
@@ -221,7 +221,7 @@ foreach ($site in $sites){
 			$htmlTableRow += "<td class=""$($style.OS)"">$($server.OS)</td>"
 			$htmlTableRow += "<td class=""$($style.DotNet)"">$($server.DotNet)</td>"
 			$htmlTableRow += "<td class=""$($style.DNS)"">$($server.DnsCheck)</td>"
-			$htmlTableRow += "<td class=""$($style.LastUpdate)"">$($server.LastUpdate)</td>"
+			$htmlTableRow += "<td class=""$($style.LastUpdate)"">$(($server.LastUpdate).ToString('MM/dd/yyyy'))</td>"
 			$htmlTableRow += "</tr>"
 			
 			$siteServersHtmlTable = $siteServersHtmlTable + $htmlTableRow
