@@ -89,13 +89,15 @@ foreach ($site in $sites){
 			$site."RCC Users" = $site."RCC Users" + $pool."RCC Users"
 			
 			$servers = (Get-CsPool $pool.Name).Computers | Select-Object `
-				Pool,@{l='Server';e={$_}},`
+				Pool,`
+				@{l='Server';e={$_}},`
 				Role,`
 				Hardware,`
 				vmTools,`
 				Sockets,`
 				Cores,`
 				Memory,`
+				HDD,`
 				PowerPlan,`
 				Uptime,`
 				OS,`
@@ -140,11 +142,12 @@ foreach ($site in $sites){
 					}else{
 						$server.vmTools = "N/A"
 					}
-					$processors = Get-WmiObject Win32_Processor -ComputerName $server.Server | Select Name,MaxClockSpeed,CurrentClockSpeed,NumberOfCores,NumberOfLogicalProcessors
+					$processors = Get-WmiObject Win32_Processor -ComputerName $server.Server | Select-Object Name,MaxClockSpeed,CurrentClockSpeed,NumberOfCores,NumberOfLogicalProcessors
 					$server.Sockets = $processors.Count
 					if (!($server.Sockets)){$server.Sockets = 1}
 					$server.Cores = $processors[0].NumberOfCores * ($processors | measure).Count
-					$server.Memory = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server | select @{l='TotalMemory';e={"{0:N2}" -f ($_.TotalVisibleMemorySize/1MB)}}).TotalMemory
+					$server.Memory = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server | Select-Object @{l='TotalMemory';e={"{0:N2}" -f ($_.TotalVisibleMemorySize/1MB)}}).TotalMemory
+					$server.HDD = Get-WmiObject Win32_Volume -Filter 'DriveType = 3' -ComputerName $server.Server | Where-Object DriveLetter -ne $null | Select-Object DriveLetter,Label,@{l='CapacityGB';e={$_.Capacity/1GB}},@{l='FreeSpaceGB';e={$_.FreeSpace/1GB}},@{l='FreeSpacePercent';e={($_.FreeSpace/$_.Capacity)*100}}
 					$server.PowerPlan = (Get-WmiObject Win32_PowerPlan -ComputerName $server.Server -Namespace root\cimv2\power -Filter "IsActive='$true'").ElementName
 					$boot = Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server
 					$server.Uptime = (($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Days * 24) + ($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours
@@ -164,15 +167,17 @@ foreach ($site in $sites){
 							<tr>
 							<th>Pool</th>
 							<th>Server</th>
+							<th>Role</th>
 							<th>Hardware</th>
 							<th>VMware Tools</th>
 							<th>Sockets</th>
 							<th>Cores</th>
 							<th>Memory</th>
+							<th>HDD</th>
 							<th>Power Plan</th>
 							<th>Uptime</th>
 							<th>OS</th>
-							<th>.NET Framework</th>
+							<th>.NET</th>
 							<th>DNS</th>
 							<th>Last Update</th>
 							</tr>"
@@ -180,48 +185,57 @@ foreach ($site in $sites){
 		$siteServersHtmlTable = $htmlTableHeader
 		
 		foreach ($server in $siteServers){
-			$style = "" | select Server,Hardware,vmTools,Sockets,Cores,Memory,PowerPlan,Uptime,OS,DotNet,DNS,LastUpdate
+			$style = "" | select Server,Hardware,vmTools,Sockets,Cores,Memory,HDD,PowerPlan,Uptime,OS,DotNet,DNS,LastUpdate
 			if ($server.Connectivity){
-				$style.Hardware = "none"
 				if ($server.vmTools -match "Up-to-date"){$style.vmTools = "none"}elseif($server.vmTools -match "Not Installed"){$style.vmTools = "fail"}else{$style.vmTools = "warn"}
 				if ($server.Sockets -gt 2){$style.Sockets = "warn"}else{$style.Sockets = "none"}
 				if (($server.Cores * $server.Sockets) -lt 6){$style.Cores = "warn"}else{$style.Cores = "none"}
 				if ($server.Memory -lt 16){$style.Memory = "warn"}else{$style.Memory = "none"}
+				$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
+				if ($server.HDD.FreeSpaceGB -lt 16){$style.HDD = "warn"}else{$style.HDD = "none"}
+				$server.HDD = "$($server.HDD.DriveLetter) $('{0:N2}GB' -f $server.HDD.FreeSpaceGB)/$('{0:N2}GB' -f $server.HDD.CapacityGB)"
 				if ($server.PowerPlan -eq "High Performance"){$style.PowerPlan = "none"}else{$style.PowerPlan = "fail"}
 				if ($server.Uptime -gt 2160){$style.Uptime = "warn"}else{$style.Uptime = "none"}
 				if ($server.OS -notmatch "Server (2016|2012|2012 R2|2008 R2)"){$style.OS = "fail"}else{$style.OS = "none"}
 				if ($server.DotNet -notmatch "(4.6.2|4.5.2)"){$style.DotNet = "warn"}else{$style.DotNet = "none"}
 				if ($server.DnsCheck -ne "Pass"){$style.DNS = "fail"}else{$style.DNS = "none"}
 				if ($server.LastUpdate -lt (Get-Date).addDays(-90)){$style.LastUpdate = "warn"}else{$style.LastUpdate = "none"}
+				$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
 			}else{
 				$style.Server = "fail"
-				$style.Hardware = "none"
 				$style.vmTools = "none"
 				$style.Sockets = "none"
 				$style.Cores = "none"
 				$style.Memory = "none"
+				$style.HDD = "none"
+				#$server.HDD = $null
 				$style.PowerPlan = "none"
 				$style.Uptime = "none"
 				$style.OS = "none"
 				$style.DotNet = "none"
 				$style.DNS = "none"
 				$style.LastUpdate = "none"
+				#$server.LastUpdate = $null
 			}
 			
 			$htmlTableRow = "<tr>"
-			$htmlTableRow += "<td>$($server.Pool)</td>"
+			$htmlTableRow += "<td><b>$($server.Pool)</b></td>"
 			$htmlTableRow += "<td class=""$($style.Server)"">$($server.Server)</td>"
-			$htmlTableRow += "<td class=""$($style.Hardware)"">$($server.Hardware)</td>"
+			$htmlTableRow += "<td>$($server.Role)</td>"
+			$htmlTableRow += "<td>$($server.Hardware)</td>"
 			$htmlTableRow += "<td class=""$($style.vmTools)"">$($server.vmTools)</td>"
 			$htmlTableRow += "<td class=""$($style.Sockets)"">$($server.Sockets)</td>"
 			$htmlTableRow += "<td class=""$($style.Cores)"">$($server.Cores)</td>"
-			$htmlTableRow += "<td class=""$($style.Memory)"">$($server.Memory)GB</td>"
+			$htmlTableRow += "<td class=""$($style.Memory)"">$($server.Memory)</td>"
+			#$htmlTableRow += "<td class=""$($style.HDD)"">$($server.HDD.DriveLetter) $('{0:N2}GB' -f $server.HDD.FreeSpaceGB)/$('{0:N2}GB' -f $server.HDD.CapacityGB)</td>"
+			$htmlTableRow += "<td class=""$($style.HDD)"">$($server.HDD)</td>"
 			$htmlTableRow += "<td class=""$($style.PowerPlan)"">$($server.PowerPlan)</td>"
 			$htmlTableRow += "<td class=""$($style.Uptime)"">$($server.Uptime)</td>"
 			$htmlTableRow += "<td class=""$($style.OS)"">$($server.OS)</td>"
 			$htmlTableRow += "<td class=""$($style.DotNet)"">$($server.DotNet)</td>"
 			$htmlTableRow += "<td class=""$($style.DNS)"">$($server.DnsCheck)</td>"
-			$htmlTableRow += "<td class=""$($style.LastUpdate)"">$(($server.LastUpdate).ToString('MM/dd/yyyy'))</td>"
+			#$htmlTableRow += "<td class=""$($style.LastUpdate)"">$(($server.LastUpdate).ToString('MM/dd/yyyy'))</td>"
+			$htmlTableRow += "<td class=""$($style.LastUpdate)"">$($server.LastUpdate)</td>"
 			$htmlTableRow += "</tr>"
 			
 			$siteServersHtmlTable = $siteServersHtmlTable + $htmlTableRow
@@ -233,7 +247,7 @@ foreach ($site in $sites){
 		
 		## Convert site header, site summary, and site server summary to HTML and combine with body
 		#$SummaryHtml = $SummaryHtml + $siteServersHtml + "<p></p>" + ($site | select * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + "<p></p>" + ($siteServers | ConvertTo-Html -As Table -Fragment) + "<p></p>"
-		$SummaryHtml = $SummaryHtml + $siteServersHtml + "<p></p>" + ($site | select * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + "<p></p>" + $siteServersHtmlTable + "<p></p>"
+		$SummaryHtml = $SummaryHtml + $siteServersHtml + "<p></p>" + ($site | select * -ExcludeProperty Identity,Name | ConvertTo-Html -As Table -Fragment) + "<p></p>" + $siteServersHtmlTable + "<p></p>"
 	}
 }
 
