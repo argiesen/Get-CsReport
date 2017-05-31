@@ -10,8 +10,10 @@ $VersionHashNDP = @{
 	394271="4.6.1"
 	394747="4.6.2"
 	394748="4.6.2"
+	394802="4.6.2"
 	394806="4.6.2"
 	460798="4.7"
+	460805="4.7"
 }
 
 $reportime = Get-Date
@@ -35,14 +37,13 @@ $HtmlHead="<html>
 		   <h3 align=""center"">Generated: $reportime</h3>"
 
 ## Gather summary info
-$htmltableheader = "<h2>Summary</h2>
-					<p>"
+$htmltableheader = "<h2>Global Summary</h2>"
 
 ## Collect users for global usage
 $users = Get-CsUser -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
 
 ## Create global user summary table and populate
-$userSummary = "" | select Users,"Voice Users","RCC Users",Pools,Sites,Trunks
+$userSummary = "" | select Sites,Users,"Voice Users","RCC Users",Pools,Trunks
 $userSummary.Users = ($users | where {$_.Enabled -eq $true}).Count
 $userSummary."Voice Users" = ($users | where {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true}).Count
 $userSummary."RCC Users" = ($users | where {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true}).Count
@@ -51,7 +52,7 @@ $userSummary.Sites = (Get-CsSite).Count
 $userSummary.Trunks = (Get-CsTrunk).Count
 
 ## Convert global user summary table to HTML and combine with body
-$SummaryHtml = $htmltableheader + ($userSummary | ConvertTo-Html -As Table -Fragment)
+$SummaryHtml = $htmltableheader + ($userSummary | ConvertTo-Html -As Table -Fragment) + "<p>"
 
 ## Gather sites info
 $sites = Get-CsSite | select Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Trunks
@@ -67,8 +68,7 @@ foreach ($site in $sites){
 	$site.Trunks = (Get-CsTrunk | where SiteId -eq $site.Identity).Count
 	$siteServers = @()
 	
-	$siteServersHtml = "<h3>$($Site.Name) Servers</h3>
-						<p>"
+	$siteServersHtml = "<h3>$($Site.Name) Breakdown</h3>"
 	
 	## If pools exist in site, process pools for servers
 	if ($sitePools){
@@ -83,14 +83,14 @@ foreach ($site in $sites){
 			$site."Voice Users" = $site."Voice Users" + $pool."Voice Users"
 			$site."RCC Users" = $site."RCC Users" + $pool."RCC Users"
 			
-			$servers = (Get-CsPool $pool.Name).Computers | select Pool,@{l='Server';e={$_}},Role,Sockets,Cores,Memory,"Power Plan",Uptime,"Operating System",".NET Framework",DnsCheck,"Last Update"
+			$servers = (Get-CsPool $pool.Name).Computers | select Pool,@{l='Server';e={$_}},Role,Hardware,vmToolsStatus,Sockets,Cores,Memory,"Power Plan","Uptime (Hours)","Operating System",".NET Framework",DnsCheck,"Last Update"
 			
 			## Process servers in pool
 			foreach ($server in $servers){
-				<# $entry = "" | select ServerFqdn,CpuCores,Memory,PowerPlan,Uptime,OSVersion,NetFrameworkVersion,DnsCheck,LastUpdate
-				$entry.ServerFqdn = $server #>
-				if ($pool.Services -match "Registrar"){
+				if ($pool.Services -match "Registrar" -and $pool.Services -match "UserServer"){
 					$server.Role = "Front End"
+				}elseif ($pool.Services -match "Registrar"){
+					$server.Role = "SBA/SBS"
 				}elseif ($pool.Services -match "Director"){
 					$server.Role = "Director"
 				}elseif ($pool.Services -match "PersistentChatServer"){
@@ -100,18 +100,37 @@ foreach ($site in $sites){
 				}
 				$server.Pool = $pool.Name
 				if (Test-Connection -ComputerName $server.Server -Count 1 -ErrorAction SilentlyContinue){
+					$computer = Get-WmiObject Win32_ComputerSystem
+					if ($computer.Manufacturer -match "VMware"){
+						$server.Hardware = "VMware"
+					}elseif ($computer.Manufacturer -match "Microsoft"){
+						$server.Hardware = "Microsoft"
+					}else{
+						$server.Hardware = "Physical"
+					}
+					if ($server.Hardware -eq "VMware"){
+						$server.vmToolsStatus = Invoke-Command -ComputerName $server.Server -ScriptBlock {Set-Location (Get-Item "HKLM:\Software\VMware, Inc.\VMware Tools").GetValue("InstallPath");Invoke-Expression ".\VMwareToolboxCmd.exe upgrade status"}
+						if (!($server.vmToolsStatus)){
+							$server.vmToolsStatus = "Not Installed"
+						}elseif ($server.vmToolsStatus -match "up-to-date"){
+							$server.vmToolsStatus = "Up-to-date"
+						}else{
+							$server.vmToolsStatus = "Update available"
+						}
+					}
 					$processors = Get-WmiObject Win32_Processor -ComputerName $server.Server | Select Name,MaxClockSpeed,CurrentClockSpeed,NumberOfCores,NumberOfLogicalProcessors
 					$server.Sockets = $processors.Count
+					if (!($server.Sockets)){$server.Sockets = 1}
 					$server.Cores = $processors[0].NumberOfCores * ($processors | measure).Count
 					$server.Memory = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server | select @{l='TotalMemory';e={"{0:N2}GB" -f ($_.TotalVisibleMemorySize/1MB)}}).TotalMemory
 					$server."Power Plan" = (Get-WmiObject Win32_PowerPlan -ComputerName $server.Server -Namespace root\cimv2\power -Filter "IsActive='$true'").ElementName
 					$boot = Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server
-					$server.Uptime = (($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Days * 24) + ($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours
+					$server."Uptime (Hours)" = (($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Days * 24) + ($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours
 					$server."Operating System" = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server).Caption
 					$server.".NET Framework" = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
 					$server.".NET Framework" = $VersionHashNDP.Item($server.".NET Framework")
 					if (Resolve-DnsName $server.Server -DnsOnly -Type A -QuickTimeout){$server.DnsCheck = "Pass"}else{$server.DnsCheck = "Fail"}
-					$server."Last Update" = ((Get-HotFix -ComputerName $server.Server | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue)[0]).InstalledOn -f "MM.dd.yy"
+					$server."Last Update" = (((Get-HotFix -ComputerName $server.Server | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue)[0]).InstalledOn).ToString("MM/dd/yyyy")
 				}
 			}
 			
@@ -120,7 +139,7 @@ foreach ($site in $sites){
 		}
 		
 		## Convert site header, site summary, and site server summary to HTML and combine with body
-		$SummaryHtml = $SummaryHtml + $siteServersHtml + ($site | select * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + "<p>" + ($siteServers | ConvertTo-Html -As Table -Fragment)
+		$SummaryHtml = $SummaryHtml + $siteServersHtml + ($site | select * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + ($siteServers | ConvertTo-Html -As Table -Fragment)
 	}
 }
 
@@ -128,7 +147,7 @@ foreach ($site in $sites){
 $HtmlTail = "</body>
 			 </html>"
 
-$htmlreport = $HtmlHead + $SummaryHtml + $AllPoolServersHtml + $HtmlTail
+$htmlreport = $HtmlHead + $SummaryHtml + $HtmlTail
 
 $htmlreport | Out-File CsReport.html -Encoding UTF8
 
