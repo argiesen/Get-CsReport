@@ -1,3 +1,61 @@
+#https://sysadmins.lv/blog-en/test-whether-ca-server-is-online-and-which-interfaces-are-available.aspx
+function Test-CAOnline {
+	[CmdletBinding()]
+	param(
+		[Parameter(Position = 0)]
+		[string]$Config,
+		[switch]$ShowUI
+	)
+	
+$signature = @"
+[DllImport("Certadm.dll", CharSet=CharSet.Auto, SetLastError=true)]
+public static extern bool CertSrvIsServerOnline(
+	string pwszServerName,
+	ref bool pfServerOnline
+);
+"@
+	
+    Add-Type -MemberDefinition $signature -Namespace CryptoAPI -Name CertAdm
+    $CertConfig = New-Object -ComObject CertificateAuthority.Config
+    if ($Config -ne "" -and !$Config.Contains("\")) {
+        Write-Error -Category InvalidArgument -ErrorId InvalidArgumentException -Message "Config string must be passed in 'CAHostName\CAName' form."
+        break
+    } elseif ($Config -eq "" -and !$ShowUI) {
+        try {$Config = $CertConfig.GetConfig(0x3)}
+        catch {
+            Write-Error -Category ObjectNotFound -ErrorId ObjectNotFoundElement -Message "Certificate Services are not installed on local computer."
+            break
+        }
+    } elseif ($Config -eq "" -and $ShowUI) {
+        $Config = $CertConfig.GetConfig(0x1)
+    }
+	
+    if ($Config) {
+        [void]($Config -match "(.+)\\(.+)")
+        $Server = $matches[1]
+        $CAName = $matches[2]
+        $ServerStatus = $false
+        $hresult = [CryptoAPI.CertAdm]::CertSrvIsServerOnline($Server,[ref]$ServerStatus)
+        if ($ServerStatus) {
+            $CertAdmin = New-Object -ComObject CertificateAuthority.Admin
+            $CertRequest = New-Object -ComObject CertificateAuthority.Request
+            $CA = New-Object psobject -Property @{
+                Name = $CAName;
+                ICertAdmin = $true;
+                ICertRequest = $true
+            }
+            try {$retn = $CertAdmin.GetCAProperty($Config,0x6,0,4,0)}
+            catch {$CA.ICertAdmin = $false}
+            try {$retn = $CertRequest.GetCAProperty($Config,0x6,0,4,0)}
+            catch {$CA.ICertRequest = $false}
+            $CA
+        } else {
+            Write-Error -Category ObjectNotFound -ErrorId ObjectNotFoundException -Message "Unable to find a Certification Authority server on '$Server'."
+        }
+    } else {return}
+}
+
+
 #https://msdn.microsoft.com/en-us/library/hh925568%28v=vs.110%29.aspx
 $VersionHashNDP = @{
 	378389="4.5"
@@ -43,8 +101,55 @@ $HtmlHead="<html>
 $htmltableheader = "<h2>Global Summary</h2>
 					<p></p>"
 
+## Collect AD forest properties
+#$adForest = Get-ADForest | select Name,RootDomain,ForestMode,DomainNamingMaster,SchemaMaster,@{name='Sites';expression={$_.Sites -join ','}},@{name='GlobalCatalogs';expression={$_.GlobalCatalogs -join ','}},@{name='UPNSuffixes';expression={$_.UPNSuffixes -join ','}}
+#$adForest = Get-ADForest | select Name,RootDomain,ForestMode,DomainNamingMaster,SchemaMaster,@{name='Sites';expression={$_.Sites -join ','}},@{name='UPNSuffixes';expression={$_.UPNSuffixes -join ','}}
+$adForest = Get-ADForest | select Name,RootDomain,ForestMode,@{name='Sites';expression={$_.Sites -join ', '}},@{name='UPNSuffixes';expression={$_.UPNSuffixes -join ', '}}
+
+## Collect AD domain properties
+#$adDomain = Get-ADDomain | select Name,Forest,NetBIOSName,ParentDomain,@{name='ChildDomains';expression={$_.ChildDomains -join ','}},DomainMode,PDCEmulator,RIDMaster,InfrastructureMaster,@{name='ReadOnlyReplicaDirectoryServers';expression={$_.ReadOnlyReplicaDirectoryServers -join ','}}
+$adDomain = Get-ADDomain | select Name,Forest,NetBIOSName,ParentDomain,@{name='ChildDomains';expression={$_.ChildDomains -join ','}},DomainMode
+
+## Collect Domain Controllers
+$adDomainControllers = Get-ADDomainController -Filter * | select HostName,Site,Enabled,IPv4Address,OperatingSystem,OperatingSystemVersion,@{name='OperationMasterRoles';expression={$_.OperationMasterRoles -join ', '}},IsGlobalCatalog,IsReadOnly
+
 ## Collect users for global usage
 $users = Get-CsUser -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+
+## Find internal CAs
+$adRoot = [ADSI]"LDAP://RootDSE"
+$adDN = $adRoot.Get("rootDomainNamingContext")
+$configRoot = [ADSI]"LDAP://CN=Configuration,$adDN"
+$query = new-object System.DirectoryServices.DirectorySearcher($configRoot)
+$query.filter = "(&(objectClass=PKIEnrollmentService)(CN=*))"
+$query.SearchScope = "subtree"
+$CAs = $query.findall()
+$CAList = @()
+
+if ($CAs){
+	foreach ($CA in $CAs){
+		$output = $CA.GetDirectoryEntry()
+		
+		$caOut = "" | Select-Object Server,CommonName,WebServerTemplate,Online
+		$caOut.Server = $output.dnsHostName | Out-String
+		$caOut.CommonName = $output.cn | Out-String
+		
+		if (!((Test-CAOnline -Config "$($output.dnsHostName)\$($output.cn)" -ErrorAction SilentlyContinue).ICertRequest)){
+			$caOut.Online = $false
+			$CAList += $caOut
+			continue
+		}else{
+			$caOut.Online = $true
+		}
+		
+		if ($output.certificateTemplates -match "^WebServer$"){
+			$caOut.WebServerTemplate = $true
+		}else{
+			$caOut.WebServerTemplate = $false
+		}
+		$CAList += $caOut
+	}
+}
 
 ## Create global user summary table and populate
 $userSummary = "" | Select-Object Sites,Users,"Voice Users","RCC Users",Pools,Trunks
@@ -55,8 +160,19 @@ $userSummary.Pools = (Get-CsPool | Where-Object Services -match "Registrar").Cou
 $userSummary.Sites = (Get-CsSite).Count
 $userSummary.Trunks = (Get-CsTrunk).Count
 
-## Convert global user summary table to HTML and combine with body
-$SummaryHtml = $htmltableheader + ($userSummary | ConvertTo-Html -As Table -Fragment) + "<p></p>"
+## Convert global summary tables to HTML and combine with body
+$HtmlBody = "$htmltableheader
+	<h3>Active Directory Forest</h3>
+	<p>$($adForest | ConvertTo-Html -As Table -Fragment)</p>
+	<h3>Active Directory Domain</h3>
+	<p>$($adDomain | ConvertTo-Html -As Table -Fragment)</p>
+	<h3>Domain Controllers</h3>
+	<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>
+	<h3>Certificate Authority</h3>
+	<p>$($CAList | ConvertTo-Html -As Table -Fragment)</p>
+	<h3>User Summary</h3>
+	<p>$($userSummary | ConvertTo-Html -As Table -Fragment)</p>
+	</br>"
 
 ## Gather sites info
 $sites = Get-CsSite | Select-Object Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Trunks
@@ -71,9 +187,6 @@ foreach ($site in $sites){
 	$site.Pools = (Get-CsPool | Where-Object {$_.Services -match "Registrar" -and $_.Site -eq $site.Identity}).Count
 	$site.Trunks = (Get-CsTrunk | Where-Object SiteId -eq $site.Identity).Count
 	$siteServers = @()
-	
-	$siteServersHtml = "<h3>$($Site.Name) Breakdown</h3>
-						<p></p>"
 	
 	## If pools exist in site, process pools for servers
 	if ($sitePools){
@@ -163,40 +276,41 @@ foreach ($site in $sites){
 			$siteServers += $servers
 		}
 		
-		$htmlTableHeader = "<table>
-							<tr>
-							<th>Pool</th>
-							<th>Server</th>
-							<th>Role</th>
-							<th>Hardware</th>
-							<th>VMware Tools</th>
-							<th>Sockets</th>
-							<th>Cores</th>
-							<th>Memory</th>
-							<th>HDD</th>
-							<th>Power Plan</th>
-							<th>Uptime</th>
-							<th>OS</th>
-							<th>.NET</th>
-							<th>DNS</th>
-							<th>Last Update</th>
-							</tr>"
+		$siteServersHtmlTableHeader = "<table>
+									  <tr>
+									  <th>Pool</th>
+									  <th>Server</th>
+									  <th>Role</th>
+									  <th>Hardware</th>
+									  <th>VMware Tools</th>
+									  <th>Sockets</th>
+									  <th>Cores</th>
+									  <th>Memory</th>
+									  <th>HDD</th>
+									  <th>Power Plan</th>
+									  <th>Uptime</th>
+									  <th>OS</th>
+									  <th>.NET</th>
+									  <th>DNS</th>
+									  <th>Last Update</th>
+									  </tr>"
 							
-		$siteServersHtmlTable = $htmlTableHeader
+		$siteServersHtmlTable = $siteServersHtmlTableHeader
 		
 		foreach ($server in $siteServers){
 			$style = "" | Select-Object Server,Hardware,vmTools,Sockets,Cores,Memory,HDD,PowerPlan,Uptime,OS,DotNet,DNS,LastUpdate
 			if ($server.Connectivity){
-				if ($server.vmTools -match "Up-to-date"){$style.vmTools = "none"}elseif($server.vmTools -match "Not Installed"){$style.vmTools = "fail"}else{$style.vmTools = "warn"}
+				if ($server.vmTools -match "(Up-to-date|N/A)"){$style.vmTools = "none"}elseif($server.vmTools -match "Not Installed"){$style.vmTools = "fail"}else{$style.vmTools = "warn"}
 				if ($server.Sockets -gt 2){$style.Sockets = "warn"}else{$style.Sockets = "none"}
 				if (($server.Cores * $server.Sockets) -lt 6){$style.Cores = "warn"}else{$style.Cores = "none"}
 				if ($server.Memory -lt 16){$style.Memory = "warn"}else{$style.Memory = "none"}
 				$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
-				if ($server.HDD.FreeSpaceGB -lt 16){$style.HDD = "warn"}else{$style.HDD = "none"}
+				if ($server.HDD.FreeSpaceGB -lt 32){$style.HDD = "warn"}else{$style.HDD = "none"}
 				$server.HDD = "$($server.HDD.DriveLetter) $('{0:N2}GB' -f $server.HDD.FreeSpaceGB)/$('{0:N2}GB' -f $server.HDD.CapacityGB)"
 				if ($server.PowerPlan -eq "High Performance"){$style.PowerPlan = "none"}else{$style.PowerPlan = "fail"}
 				if ($server.Uptime -gt 2160){$style.Uptime = "warn"}else{$style.Uptime = "none"}
 				if ($server.OS -notmatch "Server (2016|2012|2012 R2|2008 R2)"){$style.OS = "fail"}else{$style.OS = "none"}
+				$server.OS = $server.OS -replace "Microsoft Windows",""
 				if ($server.DotNet -notmatch "(4.6.2|4.5.2)"){$style.DotNet = "warn"}else{$style.DotNet = "none"}
 				if ($server.DnsCheck -ne "Pass"){$style.DNS = "fail"}else{$style.DNS = "none"}
 				if ($server.LastUpdate -lt (Get-Date).addDays(-90)){$style.LastUpdate = "warn"}else{$style.LastUpdate = "none"}
@@ -216,6 +330,7 @@ foreach ($site in $sites){
 				$style.LastUpdate = "none"
 			}
 			
+			## Build HTML table rows
 			$htmlTableRow = "<tr>"
 			$htmlTableRow += "<td><b>$($server.Pool)</b></td>"
 			$htmlTableRow += "<td class=""$($style.Server)"">$($server.Server)</td>"
@@ -237,11 +352,15 @@ foreach ($site in $sites){
 			$siteServersHtmlTable = $siteServersHtmlTable + $htmlTableRow
 		}
 		
-		$siteServersHtmlTable = $siteServersHtmlTable + "</table></p>"
+		## Close HTML table
+		$siteServersHtmlTable = $siteServersHtmlTable + "</table>"
 		
 		## Convert site header, site summary, and site server summary to HTML and combine with body
-		#$SummaryHtml = $SummaryHtml + $siteServersHtml + "<p></p>" + ($site | Select-Object * -ExcludeProperty Identity | ConvertTo-Html -As Table -Fragment) + "<p></p>" + ($siteServers | ConvertTo-Html -As Table -Fragment) + "<p></p>"
-		$SummaryHtml = $SummaryHtml + $siteServersHtml + "<p></p>" + ($site | Select-Object * -ExcludeProperty Identity,Name | ConvertTo-Html -As Table -Fragment) + "<p></p>" + $siteServersHtmlTable + "<p></p>"
+		$HtmlBody = "$HtmlBody
+			<h2>$($Site.Name) Breakdown</h2>
+			<p>$($site | Select-Object * -ExcludeProperty Identity,Name | ConvertTo-Html -As Table -Fragment)</p>
+			<p>$siteServersHtmlTable</p>
+			</br>"
 	}
 }
 
@@ -249,8 +368,8 @@ foreach ($site in $sites){
 $HtmlTail = "</body>
 			 </html>"
 
-$htmlreport = $HtmlHead + $SummaryHtml + $HtmlTail
+$htmlReport = $HtmlHead + $HtmlBody + $HtmlTail
 
-$htmlreport | Out-File CsReport.html -Encoding UTF8
+$htmlReport | Out-File CsReport.html -Encoding UTF8
 
 .\CsReport.html
