@@ -97,8 +97,8 @@ $reportime = Get-Date
 		   <h1 align=""center"">Lync/Skype for Business Topology Report</h1>
 		   <h3 align=""center"">Generated: $reportime</h3>" #>
 		   
-$HtmlHead="<html>
-		   <style>
+$HtmlHead = "<html>
+			<style>
 			BODY{font-family: Arial; font-size: 8pt; margin:45px; padding:0;}
 			H1{font-size: 22px;}
 			H2{font-size: 20px; padding-top: 10px;}
@@ -124,9 +124,9 @@ $HtmlHead="<html>
 		    tr:nth-child(odd){background: #b8d1f3;}
             ul{list-style: inside; padding-left: 0px;}
 			</style>
-		   <body>
-		   <h1 align=""center"">Lync/Skype for Business Topology Report</h1>
-		   <h3 align=""center"">Generated: $reportime</h3>"
+			<body>
+			<h1 align=""center"">Lync/Skype for Business Topology Report</h1>
+			<h3 align=""center"">Generated: $reportime</h3>"
 
 ## Gather summary info
 $htmltableheader = "<h2>Global Summary</h2>
@@ -235,12 +235,12 @@ $adSites += "</ul>"
 	
 $HtmlBody = "$htmltableheader
 	<h3>Active Directory</h3>
-	<p><b>Forest Name:</b> $($adForest.Name)</p>
-	<p><b>Forest Mode:</b> $($adForest.ForestMode)</p>
-	<p><b>Domain Name:</b> $($adDomain.DNSRoot) ($($adDomain.NetBIOSName))</p>
-	<p><b>Domain Mode:</b> $($adDomain.DomainMode)</p>
-	<p><b>UPN Suffixes:</b> $($adForest.UPNSuffixes)</p>
-	<p><b>Sites:</b>
+	<p><b>Forest Name:</b> $($adForest.Name)</br>
+	<b>Forest Mode:</b> $($adForest.ForestMode)</br>
+	<b>Domain Name:</b> $($adDomain.DNSRoot) ($($adDomain.NetBIOSName))</br>
+	<b>Domain Mode:</b> $($adDomain.DomainMode)</br>
+	<b>UPN Suffixes:</b> $($adForest.UPNSuffixes)</br>
+	<b>Sites:</b></br>
 	$adSites</p>
 	</br>
 	<h3>Domain Controllers</h3>
