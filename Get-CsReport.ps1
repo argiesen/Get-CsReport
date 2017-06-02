@@ -76,13 +76,13 @@ $VersionHashNDP = @{
 
 $reportime = Get-Date
 
-$HtmlHead="<html>
+<# $HtmlHead="<html>
 		   <style>
-		   BODY{font-family: Arial; font-size: 8pt;}
+		   BODY{font-family: Arial; font-size: 10pt; margin:45px; padding:0;}
 		   H1{font-size: 16px;}
 		   H2{font-size: 14px;}
 		   H3{font-size: 12px;}
-		   TABLE{border: 1px solid black; border-collapse: collapse; font-size: 8pt;}
+		   TABLE{border: 1px solid black; border-collapse: collapse; font-size: 10pt;}
 		   TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
 		   TD{border: 1px solid black; padding: 5px;}
 		   td.pass{background: #7FFF00;}
@@ -95,6 +95,37 @@ $HtmlHead="<html>
 		   </style>
 		   <body>
 		   <h1 align=""center"">Lync/Skype for Business Topology Report</h1>
+		   <h3 align=""center"">Generated: $reportime</h3>" #>
+		   
+$HtmlHead="<html>
+		   <style>
+			BODY{font-family: Arial; font-size: 8pt; margin:45px; padding:0;}
+			H1{font-size: 22px;}
+			H2{font-size: 20px; padding-top: 10px;}
+			H3{font-size: 16px; padding-top: 8px;}
+			TABLE{border: 1px solid black; border-collapse: collapse; font-size: 8pt; table-layout: fixed;}
+            TABLE.testresults{width: 850px;}
+            TABLE.summary{text-align: center; width: auto;}
+			TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
+            TH.summary{width: 80px;}
+            TH.test{width: 120px;}
+            TH.description{width: 150px;}
+            TH.outcome{width: 50px}
+            TH.comments{width: 120px;}
+            TH.details{width: 270px;}
+            TH.reference{width: 60px;}
+			TD{border: 1px solid black; padding: 5px; vertical-align: top; }
+			td.pass{background: #7FFF00;}
+			td.warn{background: #FFFF00;}
+			td.fail{background: #FF0000; color: #ffffff;}
+			td.info{background: #85D4FF;}
+			td.none{}
+			tr:nth-child(even){background: #dae5f4;}
+		    tr:nth-child(odd){background: #b8d1f3;}
+            ul{list-style: inside; padding-left: 0px;}
+			</style>
+		   <body>
+		   <h1 align=""center"">Lync/Skype for Business Topology Report</h1>
 		   <h3 align=""center"">Generated: $reportime</h3>"
 
 ## Gather summary info
@@ -102,16 +133,36 @@ $htmltableheader = "<h2>Global Summary</h2>
 					<p></p>"
 
 ## Collect AD forest properties
-#$adForest = Get-ADForest | select Name,RootDomain,ForestMode,DomainNamingMaster,SchemaMaster,@{name='Sites';expression={$_.Sites -join ','}},@{name='GlobalCatalogs';expression={$_.GlobalCatalogs -join ','}},@{name='UPNSuffixes';expression={$_.UPNSuffixes -join ','}}
-#$adForest = Get-ADForest | select Name,RootDomain,ForestMode,DomainNamingMaster,SchemaMaster,@{name='Sites';expression={$_.Sites -join ','}},@{name='UPNSuffixes';expression={$_.UPNSuffixes -join ','}}
-$adForest = Get-ADForest | select Name,RootDomain,ForestMode,@{name='Sites';expression={$_.Sites -join ', '}},@{name='UPNSuffixes';expression={$_.UPNSuffixes -join ', '}}
+#$adForest = Get-ADForest | Select-Object Name,RootDomain,ForestMode,DomainNamingMaster,SchemaMaster,@{name='Sites';expression={$_.Sites -join ','}},@{name='GlobalCatalogs';expression={$_.GlobalCatalogs -join ','}},@{name='UPNSuffixes';expression={$_.UPNSuffixes -join ','}}
+#$adForest = Get-ADForest | Select-Object Name,RootDomain,ForestMode,DomainNamingMaster,SchemaMaster,@{name='Sites';expression={$_.Sites -join ','}},@{name='UPNSuffixes';expression={$_.UPNSuffixes -join ','}}
+$adForest = Get-ADForest | Select-Object `
+	Name,`
+	RootDomain,`
+	ForestMode,`
+	Sites,`
+	UPNSuffixes
 
 ## Collect AD domain properties
-#$adDomain = Get-ADDomain | select Name,Forest,NetBIOSName,ParentDomain,@{name='ChildDomains';expression={$_.ChildDomains -join ','}},DomainMode,PDCEmulator,RIDMaster,InfrastructureMaster,@{name='ReadOnlyReplicaDirectoryServers';expression={$_.ReadOnlyReplicaDirectoryServers -join ','}}
-$adDomain = Get-ADDomain | select Name,Forest,NetBIOSName,ParentDomain,@{name='ChildDomains';expression={$_.ChildDomains -join ','}},DomainMode
+#$adDomain = Get-ADDomain | Select-Object Name,Forest,NetBIOSName,ParentDomain,@{name='ChildDomains';expression={$_.ChildDomains -join ','}},DomainMode,PDCEmulator,RIDMaster,InfrastructureMaster,@{name='ReadOnlyReplicaDirectoryServers';expression={$_.ReadOnlyReplicaDirectoryServers -join ','}}
+$adDomain = Get-ADDomain | Select-Object `
+	Name,`
+	Forest,`
+	NetBIOSName,`
+	DNSRoot,`
+	ParentDomain,`
+	@{name='ChildDomains';expression={$_.ChildDomains -join ','}},`
+	DomainMode
 
 ## Collect Domain Controllers
-$adDomainControllers = Get-ADDomainController -Filter * | select HostName,Site,Enabled,IPv4Address,OperatingSystem,OperatingSystemVersion,@{name='OperationMasterRoles';expression={$_.OperationMasterRoles -join ', '}},IsGlobalCatalog,IsReadOnly
+$adDomainControllers = Get-ADDomainController -Filter * | Select-Object `
+	Site,`
+	HostName,`
+	IPv4Address,`
+	OperatingSystem,`
+	OperatingSystemVersion,`
+	@{name='OperationMasterRoles';expression={$_.OperationMasterRoles -join ', '}},`
+	IsGlobalCatalog,`
+	IsReadOnly
 
 ## Collect users for global usage
 $users = Get-CsUser -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
@@ -161,11 +212,37 @@ $userSummary.Sites = (Get-CsSite).Count
 $userSummary.Trunks = (Get-CsTrunk).Count
 
 ## Convert global summary tables to HTML and combine with body
-$HtmlBody = "$htmltableheader
+<# $HtmlBody = "$htmltableheader
 	<h3>Active Directory Forest</h3>
 	<p>$($adForest | ConvertTo-Html -As Table -Fragment)</p>
 	<h3>Active Directory Domain</h3>
 	<p>$($adDomain | ConvertTo-Html -As Table -Fragment)</p>
+	<h3>Domain Controllers</h3>
+	<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>
+	<h3>Certificate Authority</h3>
+	<p>$($CAList | ConvertTo-Html -As Table -Fragment)</p>
+	<h3>User Summary</h3>
+	<p>$($userSummary | ConvertTo-Html -As Table -Fragment)</p>
+	</br>" #>
+
+## Build AD site HTML list
+$adSites = "<ul>"
+foreach ($site in $($adForest.Sites)){
+	$adSites += "<li>$site</li>"
+
+}
+$adSites += "</ul>"
+	
+$HtmlBody = "$htmltableheader
+	<h3>Active Directory</h3>
+	<p><b>Forest Name:</b> $($adForest.Name)</p>
+	<p><b>Forest Mode:</b> $($adForest.ForestMode)</p>
+	<p><b>Domain Name:</b> $($adDomain.DNSRoot) ($($adDomain.NetBIOSName))</p>
+	<p><b>Domain Mode:</b> $($adDomain.DomainMode)</p>
+	<p><b>UPN Suffixes:</b> $($adForest.UPNSuffixes)</p>
+	<p><b>Sites:</b>
+	$adSites</p>
+	</br>
 	<h3>Domain Controllers</h3>
 	<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>
 	<h3>Certificate Authority</h3>
@@ -340,7 +417,11 @@ foreach ($site in $sites){
 			$htmlTableRow += "<td class=""$($style.Sockets)"">$($server.Sockets)</td>"
 			$htmlTableRow += "<td class=""$($style.Cores)"">$($server.Cores)</td>"
 			$htmlTableRow += "<td class=""$($style.Memory)"">$($server.Memory)</td>"
-			$htmlTableRow += "<td class=""$($style.HDD)"">$($server.HDD)</td>"
+			$htmlTableRow += "<td class=""$($style.HDD)"">"
+			foreach ($hdd in $($server.HDD)){
+				$htmlTableRow += "$($server.HDD)</br>"
+			}
+			$htmlTableRow += "</td>"
 			$htmlTableRow += "<td class=""$($style.PowerPlan)"">$($server.PowerPlan)</td>"
 			$htmlTableRow += "<td class=""$($style.Uptime)"">$($server.Uptime)</td>"
 			$htmlTableRow += "<td class=""$($style.OS)"">$($server.OS)</td>"
