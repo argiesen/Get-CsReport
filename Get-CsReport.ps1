@@ -98,39 +98,38 @@ $reportime = Get-Date
 		   <h3 align=""center"">Generated: $reportime</h3>" #>
 		   
 $HtmlHead = "<html>
-			<style>
-			BODY{font-family: Arial; font-size: 8pt; margin:45px; padding:0;}
-			H1{font-size: 22px;}
-			H2{font-size: 20px; padding-top: 10px;}
-			H3{font-size: 16px; padding-top: 8px;}
-			TABLE{border: 1px solid black; border-collapse: collapse; font-size: 8pt; table-layout: fixed;}
-            TABLE.testresults{width: 850px;}
-            TABLE.summary{text-align: center; width: auto;}
-			TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
-            TH.summary{width: 80px;}
-            TH.test{width: 120px;}
-            TH.description{width: 150px;}
-            TH.outcome{width: 50px}
-            TH.comments{width: 120px;}
-            TH.details{width: 270px;}
-            TH.reference{width: 60px;}
-			TD{border: 1px solid black; padding: 5px; vertical-align: top; }
-			td.pass{background: #7FFF00;}
-			td.warn{background: #FFFF00;}
-			td.fail{background: #FF0000; color: #ffffff;}
-			td.info{background: #85D4FF;}
-			td.none{}
-			tr:nth-child(even){background: #dae5f4;}
-		    tr:nth-child(odd){background: #b8d1f3;}
-            ul{list-style: inside; padding-left: 0px;}
-			</style>
-			<body>
-			<h1 align=""center"">Lync/Skype for Business Topology Report</h1>
-			<h3 align=""center"">Generated: $reportime</h3>"
+	<style>
+	BODY{font-family: Arial; font-size: 10pt;}
+	H1{font-size: 22px;}
+	H2{font-size: 20px; padding-top: 10px;}
+	H3{font-size: 16px; padding-top: 8px;}
+	TABLE{border: 1px solid black; border-collapse: collapse; font-size: 8pt; table-layout: fixed;}
+	TABLE.csservers{table-layout: auto; width: 850px;}
+	TABLE.testresults{width: 850px;}
+	TABLE.summary{text-align: center; width: auto;}
+	TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
+	TH.summary{width: 80px;}
+	TH.test{width: 120px;}
+	TH.description{width: 150px;}
+	TH.outcome{width: 50px}
+	TH.comments{width: 120px;}
+	TH.details{width: 270px;}
+	TH.reference{width: 60px;}
+	TD{border: 1px solid black; padding: 5px; vertical-align: top;}
+	td.pass{background: #7FFF00;}
+	td.warn{background: #FFFF00;}
+	td.fail{background: #FF0000; color: #ffffff;}
+	td.info{background: #85D4FF;}
+	td.none{}
+	ul{list-style: inside; padding-left: 0px;}
+	</style>
+	<body>
+	<h1>Skype for Business Report</h1>
+	<p>Generated: $reportime</p>"
 
 ## Gather summary info
-$htmltableheader = "<h2>Global Summary</h2>
-					<p></p>"
+$htmltableheader = "<h2>Environment Overview</h2>
+	<p></p>"
 
 ## Collect AD forest properties
 #$adForest = Get-ADForest | Select-Object Name,RootDomain,ForestMode,DomainNamingMaster,SchemaMaster,@{name='Sites';expression={$_.Sites -join ','}},@{name='GlobalCatalogs';expression={$_.GlobalCatalogs -join ','}},@{name='UPNSuffixes';expression={$_.UPNSuffixes -join ','}}
@@ -154,18 +153,33 @@ $adDomain = Get-ADDomain | Select-Object `
 	DomainMode
 
 ## Collect Domain Controllers
-$adDomainControllers = Get-ADDomainController -Filter * | Select-Object `
-	Site,`
-	HostName,`
-	IPv4Address,`
-	OperatingSystem,`
-	OperatingSystemVersion,`
-	@{name='OperationMasterRoles';expression={$_.OperationMasterRoles -join ', '}},`
-	IsGlobalCatalog,`
-	IsReadOnly
+try {
+	$adDomainControllers = Get-ADDomainController -Filter * | Select-Object `
+		Site,`
+		HostName,`
+		IPv4Address,`
+		OperatingSystem,`
+		OperatingSystemVersion,`
+		@{name='OperationMasterRoles';expression={$_.OperationMasterRoles -join ', '}},`
+		IsGlobalCatalog,`
+		IsReadOnly
+}catch{
+	#continue
+}
 
 ## Collect users for global usage
 $users = Get-CsUser -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+
+## Collect users who are disabled in AD but enabled in Skype
+$disabledAdUsers = Get-CsAdUser -ResultSize Unlimited | `
+	Where-Object {$_.UserAccountControl -match "AccountDisabled" -and $_.Enabled -eq $true} | `
+	Select-Object Name,Enabled,SipAddress
+
+## Collect analog devices
+$analogDevices = Get-CsAnalogDevice | Where-Object Enabled -eq $true
+	
+## Collect common area phones
+$commonAreaPhones = Get-CsCommonAreaPhone | Where-Object Enabled -eq $true
 
 ## Find internal CAs
 $adRoot = [ADSI]"LDAP://RootDSE"
@@ -174,65 +188,53 @@ $configRoot = [ADSI]"LDAP://CN=Configuration,$adDN"
 $query = new-object System.DirectoryServices.DirectorySearcher($configRoot)
 $query.filter = "(&(objectClass=PKIEnrollmentService)(CN=*))"
 $query.SearchScope = "subtree"
-$CAs = $query.findall()
-$CAList = @()
+$caResults = $query.findall()
+$CAs = @()
 
-if ($CAs){
-	foreach ($CA in $CAs){
-		$output = $CA.GetDirectoryEntry()
-		
-		$caOut = "" | Select-Object Server,CommonName,WebServerTemplate,Online
-		$caOut.Server = $output.dnsHostName | Out-String
-		$caOut.CommonName = $output.cn | Out-String
-		
-		if (!((Test-CAOnline -Config "$($output.dnsHostName)\$($output.cn)" -ErrorAction SilentlyContinue).ICertRequest)){
-			$caOut.Online = $false
-			$CAList += $caOut
-			continue
-		}else{
-			$caOut.Online = $true
-		}
-		
-		if ($output.certificateTemplates -match "^WebServer$"){
-			$caOut.WebServerTemplate = $true
-		}else{
-			$caOut.WebServerTemplate = $false
-		}
-		$CAList += $caOut
+foreach ($ca in $caResults){
+	$output = $CA.GetDirectoryEntry()
+	
+	$caOut = "" | Select-Object CommonName,Server,WebServerTemplate,Online
+	$caOut.Server = $output.dnsHostName | Out-String
+	$caOut.CommonName = $output.cn | Out-String
+	
+	if (!((Test-CAOnline -Config "$($output.dnsHostName)\$($output.cn)" -ErrorAction SilentlyContinue).ICertRequest)){
+		$caOut.Online = $false
+		$CAs += $caOut
+		continue
+	}else{
+		$caOut.Online = $true
 	}
+	
+	if ($output.certificateTemplates -match "^WebServer$"){
+		$caOut.WebServerTemplate = $true
+	}else{
+		$caOut.WebServerTemplate = $false
+	}
+	$CAs += $caOut
 }
 
 ## Create global user summary table and populate
-$userSummary = "" | Select-Object Sites,Users,"Voice Users","RCC Users",Pools,Trunks
-$userSummary.Users = ($users | Where-Object {$_.Enabled -eq $true}).Count
-$userSummary."Voice Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true}).Count
-$userSummary."RCC Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true}).Count
-$userSummary.Pools = (Get-CsPool | Where-Object Services -match "Registrar").Count
-$userSummary.Sites = (Get-CsSite).Count
-$userSummary.Trunks = (Get-CsTrunk).Count
-
-## Convert global summary tables to HTML and combine with body
-<# $HtmlBody = "$htmltableheader
-	<h3>Active Directory Forest</h3>
-	<p>$($adForest | ConvertTo-Html -As Table -Fragment)</p>
-	<h3>Active Directory Domain</h3>
-	<p>$($adDomain | ConvertTo-Html -As Table -Fragment)</p>
-	<h3>Domain Controllers</h3>
-	<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>
-	<h3>Certificate Authority</h3>
-	<p>$($CAList | ConvertTo-Html -As Table -Fragment)</p>
-	<h3>User Summary</h3>
-	<p>$($userSummary | ConvertTo-Html -As Table -Fragment)</p>
-	</br>" #>
+$globalSummary = "" | Select-Object Sites,Users,"Disabled Users","Voice Users","RCC Users","Analog Devices","Common Area Phones",Pools,Trunks
+$globalSummary.Users = ($users | Where-Object {$_.Enabled -eq $true}).Count
+$globalSummary."Disabled Users" = $disabledAdUsers.Count
+$globalSummary."Voice Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true}).Count
+$globalSummary."RCC Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true}).Count
+$globalSummary."Analog Devices" = $analogDevices.Count
+$globalSummary."Common Area Phones" = $commonAreaPhones.Count
+$globalSummary.Pools = (Get-CsPool | Where-Object Services -match "Registrar").Count
+$globalSummary.Sites = (Get-CsSite).Count
+$globalSummary.Trunks = (Get-CsTrunk).Count
 
 ## Build AD site HTML list
-$adSites = "<ul>"
 foreach ($site in $($adForest.Sites)){
 	$adSites += "<li>$site</li>"
-
 }
-$adSites += "</ul>"
-	
+$adSites = "<ul>
+	$adSites
+	</ul>"
+
+## Convert global summary tables to HTML and combine with body
 $HtmlBody = "$htmltableheader
 	<h3>Active Directory</h3>
 	<p><b>Forest Name:</b> $($adForest.Name)</br>
@@ -242,14 +244,60 @@ $HtmlBody = "$htmltableheader
 	<b>UPN Suffixes:</b> $($adForest.UPNSuffixes)</br>
 	<b>Sites:</b></br>
 	$adSites</p>
-	</br>
-	<h3>Domain Controllers</h3>
-	<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>
-	<h3>Certificate Authority</h3>
-	<p>$($CAList | ConvertTo-Html -As Table -Fragment)</p>
-	<h3>User Summary</h3>
-	<p>$($userSummary | ConvertTo-Html -As Table -Fragment)</p>
 	</br>"
+	if ($adDomainControllers){
+		$HtmlBody += "<h3>Domain Controllers</h3>
+			<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>"
+	}
+	if ($CAs){
+		$caHtmlTableHeader = "<table>
+			<tr>
+			<th>Common Name</th>
+			<th>Server</th>
+			<th>Online</th>
+			</tr>"
+	
+		$caHtmlTable = "<h3>Certificate Authority</h3>"
+		## Build CA HTML table rows
+		foreach ($ca in $CAs){
+			$htmlTableRow = "<tr>"
+			$htmlTableRow += "<td>$($ca.CommonName)</td>"
+			$htmlTableRow += "<td>$($ca.Server)</td>"
+			if ($ca.Online){$style="none"}else{$style="fail"}
+			$htmlTableRow += "<td class=""$style"">$($ca.Online)</td>"
+			
+			if (!($ca.Online)){$caWarnMessages += "<li>$($ca.Server): Server is unavailable.</li>"}
+			if (!($ca.WebServerTemplate)){$caWarnMessages += "<li>$($ca.Server): Web server template is unavailable.</li>"}
+			
+			$caHtmlTable = $caHtmlTable + $htmlTableRow
+		}
+		
+		$caHtmlTable = $caHtmlTableHeader + $caHtmlTable + "</table>"
+		
+		$HtmlBody += $caHtmlTable
+		
+		if ($caWarnMessages){
+			$caHtmlWarn = "<p>Warning Items</p>
+				<ul>
+				$caWarnMessages
+				</ul>"
+			
+			$HtmlBody = $HtmlBody + $caHtmlWarn
+		}
+	}
+$HtmlBody += "<h3>Summary</h3>
+	<p>$($globalSummary | ConvertTo-Html -As Table -Fragment)</p>"
+
+
+if ($globalSummary."Disabled Users" -gt 0){$globalWarnMessages += "<li>Users exist that are disabled in AD but are enabled for Skype. These users may still be able to login to Skype.</li>"}
+if ($globalWarnMessages){
+	$globalHtmlWarn = "<p>Warning Items</p>
+		<ul>
+		$globalWarnMessages
+		</ul>"
+
+	$HtmlBody = $HtmlBody + $globalWarnMessages
+}
 
 ## Gather sites info
 $sites = Get-CsSite | Select-Object Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Trunks
@@ -294,7 +342,8 @@ foreach ($site in $sites){
 				DotNet,`
 				DnsCheck,`
 				LastUpdate,`
-				Connectivity
+				Connectivity,`
+				Permission
 			
 			## Process servers in pool
 			foreach ($server in $servers){
@@ -309,16 +358,26 @@ foreach ($site in $sites){
 				}elseif ($pool.Services -match "MediationServer"){
 					$server.Role = "Mediation"
 				}
+				
 				$server.Pool = $pool.Name
 				$server.Connectivity = Test-Connection -ComputerName $server.Server -Count 1 -ErrorAction SilentlyContinue
-				if ($server.Connectivity){
-					$computer = Get-WmiObject Win32_ComputerSystem
+				
+				$error.Clear()
+				Get-WmiObject Win32_ComputerSystem -ComputerName $server.Server -ErrorAction SilentlyContinue | Out-Null
+				if ($error.Exception.Message -match "access denied"){
+					$server.Permission = $false
+				}else{
+					$server.Permission = $true
+				}
+				
+				if ($server.Connectivity -and $server.Permission){
+					$computer = Get-WmiObject Win32_ComputerSystem -ComputerName $server.Server -ErrorAction SilentlyContinue
 					if ($computer.Manufacturer -match "VMware"){
 						$server.Hardware = "VMware"
 					}elseif ($computer.Manufacturer -match "Microsoft"){
 						$server.Hardware = "Microsoft"
 					}else{
-						$server.Hardware = "Physical"
+						$server.Hardware = "$($computer.Manufacturer) $($computer.Model)"
 					}
 					if ($server.Hardware -eq "VMware"){
 						$server.vmTools = Invoke-Command -ComputerName $server.Server -ScriptBlock {Set-Location (Get-Item "HKLM:\Software\VMware, Inc.\VMware Tools").GetValue("InstallPath");Invoke-Expression ".\VMwareToolboxCmd.exe upgrade status"}
@@ -353,37 +412,19 @@ foreach ($site in $sites){
 			$siteServers += $servers
 		}
 		
-		$siteServersHtmlTableHeader = "<table>
-									  <tr>
-									  <th>Pool</th>
-									  <th>Server</th>
-									  <th>Role</th>
-									  <th>Hardware</th>
-									  <th>VMware Tools</th>
-									  <th>Sockets</th>
-									  <th>Cores</th>
-									  <th>Memory</th>
-									  <th>HDD</th>
-									  <th>Power Plan</th>
-									  <th>Uptime</th>
-									  <th>OS</th>
-									  <th>.NET</th>
-									  <th>DNS</th>
-									  <th>Last Update</th>
-									  </tr>"
-							
-		$siteServersHtmlTable = $siteServersHtmlTableHeader
-		
 		foreach ($server in $siteServers){
 			$style = "" | Select-Object Server,Hardware,vmTools,Sockets,Cores,Memory,HDD,PowerPlan,Uptime,OS,DotNet,DNS,LastUpdate
-			if ($server.Connectivity){
+			#$hddList = @()
+			if ($server.Connectivity -and $server.Permission){
 				if ($server.vmTools -match "(Up-to-date|N/A)"){$style.vmTools = "none"}elseif($server.vmTools -match "Not Installed"){$style.vmTools = "fail"}else{$style.vmTools = "warn"}
 				if ($server.Sockets -gt 2){$style.Sockets = "warn"}else{$style.Sockets = "none"}
 				if (($server.Cores * $server.Sockets) -lt 6){$style.Cores = "warn"}else{$style.Cores = "none"}
 				if ($server.Memory -lt 16){$style.Memory = "warn"}else{$style.Memory = "none"}
 				$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
 				if ($server.HDD.FreeSpaceGB -lt 32){$style.HDD = "warn"}else{$style.HDD = "none"}
-				$server.HDD = "$($server.HDD.DriveLetter) $('{0:N2}GB' -f $server.HDD.FreeSpaceGB)/$('{0:N2}GB' -f $server.HDD.CapacityGB)"
+				<# foreach ($hdd in $server.HDD){
+					$hddList += "$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)"
+				} #>
 				if ($server.PowerPlan -eq "High Performance"){$style.PowerPlan = "none"}else{$style.PowerPlan = "fail"}
 				if ($server.Uptime -gt 2160){$style.Uptime = "warn"}else{$style.Uptime = "none"}
 				if ($server.OS -notmatch "Server (2016|2012|2012 R2|2008 R2)"){$style.OS = "fail"}else{$style.OS = "none"}
@@ -407,21 +448,43 @@ foreach ($site in $sites){
 				$style.LastUpdate = "none"
 			}
 			
-			## Build HTML table rows
+			## Build servers HTML table header
+			$siteServersHtmlTableHeader = "<table class=""csservers"">
+				<tr>
+				<th>Pool</th>
+				<th>Server</th>
+				<th>Role</th>
+				<th>Hardware</th>
+				<th>VMware Tools</th>
+				<th>Sockets</th>
+				<th>Cores</th>
+				<th>Memory</th>
+				<th>HDD</th>
+				<th>Power Plan</th>
+				<th>Uptime</th>
+				<th>OS</th>
+				<th>.NET</th>
+				<th>DNS</th>
+				<th>Last Update</th>
+				</tr>"
+							
+			$siteServersHtmlTable = $siteServersHtmlTableHeader
+			
+			## Build servers HTML table rows
 			$htmlTableRow = "<tr>"
-			$htmlTableRow += "<td><b>$($server.Pool)</b></td>"
-			$htmlTableRow += "<td class=""$($style.Server)"">$($server.Server)</td>"
+			$htmlTableRow += "<td><b>$(($server.Pool).Split(".")[0])</b></td>"
+			$htmlTableRow += "<td class=""$($style.Server)"">$(($server.Server).Split(".")[0])</td>"
 			$htmlTableRow += "<td>$($server.Role)</td>"
 			$htmlTableRow += "<td>$($server.Hardware)</td>"
 			$htmlTableRow += "<td class=""$($style.vmTools)"">$($server.vmTools)</td>"
 			$htmlTableRow += "<td class=""$($style.Sockets)"">$($server.Sockets)</td>"
 			$htmlTableRow += "<td class=""$($style.Cores)"">$($server.Cores)</td>"
 			$htmlTableRow += "<td class=""$($style.Memory)"">$($server.Memory)</td>"
-			$htmlTableRow += "<td class=""$($style.HDD)"">"
-			foreach ($hdd in $($server.HDD)){
-				$htmlTableRow += "$($server.HDD)</br>"
+			$htmlTableRow += "<td class=""$($style.HDD)""><ul>"
+			foreach ($hdd in $server.HDD){
+				$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
 			}
-			$htmlTableRow += "</td>"
+			$htmlTableRow += "</ul></td>"
 			$htmlTableRow += "<td class=""$($style.PowerPlan)"">$($server.PowerPlan)</td>"
 			$htmlTableRow += "<td class=""$($style.Uptime)"">$($server.Uptime)</td>"
 			$htmlTableRow += "<td class=""$($style.OS)"">$($server.OS)</td>"
@@ -433,12 +496,11 @@ foreach ($site in $sites){
 			$siteServersHtmlTable = $siteServersHtmlTable + $htmlTableRow
 		}
 		
-		## Close HTML table
+		## Close servers HTML table
 		$siteServersHtmlTable = $siteServersHtmlTable + "</table>"
 		
 		## Convert site header, site summary, and site server summary to HTML and combine with body
-		$HtmlBody = "$HtmlBody
-			<h2>$($Site.Name) Breakdown</h2>
+		$HtmlBody += "<h2>$($Site.Name) Breakdown</h2>
 			<p>$($site | Select-Object * -ExcludeProperty Identity,Name | ConvertTo-Html -As Table -Fragment)</p>
 			<p>$siteServersHtmlTable</p>
 			</br>"
@@ -447,7 +509,7 @@ foreach ($site in $sites){
 
 ## Close Report
 $HtmlTail = "</body>
-			 </html>"
+	</html>"
 
 $htmlReport = $HtmlHead + $HtmlBody + $HtmlTail
 
