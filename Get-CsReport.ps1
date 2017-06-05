@@ -104,12 +104,12 @@ try {
 	$adDomainControllers = Get-ADDomainController -Filter * | Select-Object `
 		Site,`
 		@{name='HostName';expression={($_.HostName).ToLower()}},`
-		IPv4Address,`
+		@{name='IP Address';expression={$_.IPv4Address}},`
 		@{name='OS';expression={$_.OperatingSystem -replace 'Windows ',''}},`
-		@{name='OSVersion';expression={$_.OperatingSystemVersion}},`
-		@{name='OperationMasterRoles';expression={$_.OperationMasterRoles -join ', '}},`
-		IsGlobalCatalog,`
-		IsReadOnly
+		@{name='OS Version';expression={$_.OperatingSystemVersion}},`
+		@{name='Roles';expression={$_.OperationMasterRoles -join ', '}},`
+		@{name='Global Catalog';expression={$_.IsGlobalCatalog}},`
+		@{name='Read Only';expression={$_.IsReadOnly}}
 }catch{
 	#continue
 }
