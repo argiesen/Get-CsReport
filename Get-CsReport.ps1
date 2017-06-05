@@ -470,6 +470,36 @@ if ($CAs){
 }
 
 ## Global Users Summary
+<# if ($globalSummary."AD Disabled" -gt 0){$userWarnMessages += "<li>Users exist that are disabled in AD but are enabled for Skype4B. These users may still be able to login to Skype4B.</li>"}
+
+## Build test HTML table rows
+foreach ($test in $tests){
+	$htmlTableRow = "<tr>"
+	$htmlTableRow += "<td class=""test"">$($test.test)</td>"
+	$htmlTableRow += "<td class=""description"">$($test.description)</td>"
+	$htmlTableRow += "<td class=""outcome"">$($test.outcome)</td>"
+	$htmlTableRow += "<td class=""comments"">$($test.comments)</td>"
+	$htmlTableRow += "<td class=""details"">$($test.details)</td>"
+	$htmlTableRow += "<td class=""reference"">$($test.reference)</td>"
+	$htmlTableRow += "</tr>"
+
+	$userTestHtmlTable += $htmlTableRow
+}
+
+$userHtmlBody = "<h3>Summary</h3>
+	<p>$($globalSummary | ConvertTo-Html -As Table -Fragment)</p>
+	<table class=""testresults"">
+	<tr>
+	<th class=""test"">Test</th>
+	<th class=""description"">Description</th>
+	<th class=""outcome"">Outcome</th>
+	<th class=""comments"">Comments</th>
+	<th class=""details"">Details</th>
+	<th class=""reference"">Reference</th>
+	$userTestHtmlTable
+	</table>" #>
+
+
 ## Generate warning messages
 if ($globalSummary."AD Disabled" -gt 0){$userWarnMessages += "<li>Users exist that are disabled in AD but are enabled for Skype4B. These users may still be able to login to Skype4B.</li>"}
 
