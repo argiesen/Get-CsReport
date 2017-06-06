@@ -336,22 +336,22 @@ foreach ($site in $sites){
 					$htmlTableRow += "<td>$($server.vmTools)</td>"
 				}elseif($server.vmTools -match "Not Installed"){
 					$htmlTableRow += "<td class=""fail"">$($server.vmTools)</td>"
-					$siteFailItems += "<li>VMware Tools is not installed on one or more servers detected as VMware.</li>"
+					$siteFailItems += "<li>One or more servers were detected as VMware VMs without VMware Tools installed.</li>"
 				}else{
 					$htmlTableRow += "<td class=""warn"">$($server.vmTools)</td>"
-					$siteWarnItems += "<li>VMware Tools is not up-to-date on one or more servers detected as VMware.</li>"
+					$siteWarnItems += "<li>One or more servers were detected as VMware VMs with an update available for VMware Tools.</li>"
 				}
 				if (($server.Sockets -eq $server.Cores) -and ($server.Sockets -gt 1)){
 					$htmlTableRow += "<td class=""warn"">$($server.Sockets)</td>"
 					$siteWarnItems += "<li>One or more servers' CPU sockets is equal to cores. See `
-					<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Test#sockets-equal-to-corescores-less-than-4' target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
+					<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
 				}else{
 					$htmlTableRow += "<td>$($server.Sockets)</td>"
 				}
 				if ($server.Cores -lt 4){
 					$htmlTableRow += "<td class=""warn"">$($server.Cores)</td>"
 					$siteWarnItems += "<li>One or more servers' total cores is less than 4. See `
-					<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Test#sockets-equal-to-corescores-less-than-4' target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
+					<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
 				}else{
 					$htmlTableRow += "<td>$($server.Cores)</td>"
 				}
@@ -405,7 +405,7 @@ foreach ($site in $sites){
 				}
 				if ($server.DotNet -notmatch "(4.6.2|4.5.2)"){
 					$htmlTableRow += "<td class=""warn"">$($server.DotNet)</td>"
-					$siteWarnItems += "<li>.NET Framework is not up-to-date on one or more servers. Version 4.5.2 or 4.6.2 is recommended. See `
+					$siteWarnItems += "<li>One or more servers .NET Framework is out-of-date. Version 4.5.2 or 4.6.2 is recommended. See `
 					<a href='https://blogs.technet.microsoft.com/nexthop/2016/02/11/on-net-framework-4-6-2-and-skype-for-businesslync-server-compatibility/' `
 					target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a></li>"
 				}else{
