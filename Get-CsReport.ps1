@@ -162,20 +162,30 @@ foreach ($ca in $caResults){
 }
 
 ## Create global user summary table and populate
-$globalSummary = "" | Select-Object Sites,Users,"AD Disabled","Voice Users","RCC Users","Analog","Common Area",RGS,Pools,Trunks
+$globalSummary = "" | Select-Object Sites,Users,"Address Mismatch","AD Disabled","Admin Users","Voice Users","RCC Users","Analog","Common Area",RGS,Pools,Gateways
 $globalSummary.Sites = (Get-CsSite).Count
 $globalSummary.Users = ($users | Where-Object {$_.Enabled -eq $true}).Count
+$globalSummary."Address Mismatch" = (Get-CsAdUser | Where-Object {($_.WindowsEmailAddress -and $_.SipAddress) -and ($_.WindowsEmailAddress -ne ($_.SipAddress -replace "sip:",""))}).Count
 $globalSummary."AD Disabled" = $disabledAdUsers.Count
+$globalSummary."Admin Users" = (Get-AdUser -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | foreach{Get-CsUser $_.SamAccountName -ErrorAction SilentlyContinue}).Count
 $globalSummary."Voice Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true}).Count
 $globalSummary."RCC Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true}).Count
 $globalSummary."Analog" = $analogDevices.Count
 $globalSummary."Common Area" = $commonAreaPhones.Count
 $globalSummary.RGS = (Get-CsRgsWorkflow).Count
 $globalSummary.Pools = (Get-CsPool | Where-Object Services -match "Registrar").Count
-$globalSummary.Trunks = (Get-CsTrunk).Count
+$globalSummary.Gateways = (Get-CsService -PstnGateway).Count
+
+## Gather global CS info
+$csSummary = "" | Select-Object CMS,SipDomain,MeetUrl,DialinUrl,AdminUrl
+$csSummary.CMS = Get-CsService -CentralManagement | Select-Object SiteId,PoolFqdn,Version,Active
+$csSummary.SipDomain = Get-CsSipDomain
+$csSummary.MeetUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandProperty SimpleUrl | Where-Object {$_.Component -eq "meet"}
+$csSummary.DialinUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandProperty SimpleUrl | Where-Object {$_.Component -eq "dialin"}
+$csSummary.AdminUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandProperty SimpleUrl | Where-Object {$_.Component -eq "cscp"}
 
 ## Gather sites info
-$sites = Get-CsSite | Select-Object Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Trunks
+$sites = Get-CsSite | Select-Object Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Gateways
 $pools = Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director"
 
 ## Process each site in topology for site summary, then server summary
@@ -187,8 +197,11 @@ foreach ($site in $sites){
 	$site."Voice Users" = 0
 	$site."RCC Users" = 0
 	$site.Pools = (Get-CsPool | Where-Object {$_.Services -match "Registrar" -and $_.Site -eq $site.Identity}).Count
-	$site.Trunks = (Get-CsTrunk | Where-Object SiteId -eq $site.Identity).Count
+	$site.Gateways = (Get-CsService -PstnGateway | Where-Object SiteId -eq $site.Identity).Count
 	$siteServers = @()
+	$siteFailItems = @()
+	$siteWarnItems = @()
+	$siteInfoItems = @()
 	
 	## If pools exist in site, process pools for servers
 	if ($sitePools){
@@ -203,8 +216,9 @@ foreach ($site in $sites){
 			$site."RCC Users" = $site."RCC Users" + $pool."RCC Users"
 			
 			$servers = (Get-CsPool $pool.Name).Computers | Select-Object `
+				@{label='Site';expression={$site.Identity}},`
 				Pool,`
-				@{l='Server';e={$_}},`
+				@{label='Server';expression={$_}},`
 				Role,`
 				Hardware,`
 				vmTools,`
@@ -241,10 +255,10 @@ foreach ($site in $sites){
 				$error.Clear()
 				Get-WmiObject Win32_ComputerSystem -ComputerName $server.Server -ErrorAction SilentlyContinue | Out-Null
 				if ($error.Exception.Message -match "access denied"){
-					Write-Host $server.Server "is not accessible."
+					Write-Verbose "$($server.Server) is not accessible."
 					$server.Permission = $false
 				}else{
-					Write-Host $server.Server "is accessible."
+					Write-Verbose "$($server.Server) is accessible."
 					$server.Permission = $true
 				}
 				
@@ -293,38 +307,117 @@ foreach ($site in $sites){
 		$siteServersHtmlTable = $null
 		
 		foreach ($server in $siteServers){
-			$style = "" | Select-Object Server,Hardware,vmTools,Sockets,Cores,Memory,HDD,PowerPlan,Uptime,OS,DotNet,DNS,LastUpdate
-			if ($server.Connectivity -and $server.Permission){
-				if ($server.vmTools -match "(Up-to-date|N/A)"){$style.vmTools = "none"}elseif($server.vmTools -match "Not Installed"){$style.vmTools = "fail"}else{$style.vmTools = "warn"}
-				if ($server.Sockets -gt 2){$style.Sockets = "warn"}else{$style.Sockets = "none"}
-				if (($server.Cores * $server.Sockets) -lt 6){$style.Cores = "warn"}else{$style.Cores = "none"}
-				if ($server.Memory -lt 16){$style.Memory = "warn"}else{$style.Memory = "none"}
-				$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
-				if ($server.HDD.FreeSpaceGB -lt 32){$style.HDD = "warn"}else{$style.HDD = "none"}
-				if ($server.PowerPlan -eq "High Performance"){$style.PowerPlan = "none"}else{$style.PowerPlan = "fail"}
-				if ($server.Uptime -gt 2160){$style.Uptime = "warn"}else{$style.Uptime = "none"}
-				if ($server.OS -notmatch "Server (2016|2012|2012 R2|2008 R2)"){$style.OS = "fail"}else{$style.OS = "none"}
-				if ($server.DotNet -notmatch "(4.6.2|4.5.2)"){$style.DotNet = "warn"}else{$style.DotNet = "none"}
-				if ($server.DnsCheck -ne "Pass"){$style.DNS = "fail"}else{$style.DNS = "none"}
-				if ($server.LastUpdate -lt (Get-Date).addDays(-90)){$style.LastUpdate = "warn"}else{$style.LastUpdate = "none"}
-				$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
-			}else{
-				$style.Server = "fail"
-				$style.vmTools = "none"
-				$style.Sockets = "none"
-				$style.Cores = "none"
-				$style.Memory = "none"
-				$style.HDD = "none"
-				$style.PowerPlan = "none"
-				$style.Uptime = "none"
-				$style.OS = "none"
-				$style.DotNet = "none"
-				$style.DNS = "none"
-				$style.LastUpdate = "none"
-			}
-			
+			#$style = "" | Select-Object Server,Hardware,vmTools,Sockets,Cores,Memory,HDD,PowerPlan,Uptime,OS,DotNet,DNS,LastUpdate
 			## Build servers HTML table rows
 			$htmlTableRow = "<tr>"
+			$htmlTableRow += "<td><b>$(($server.Pool).Split(".")[0])</b></td>"
+			if ($server.Connectivity -and $server.Permission){
+				$htmlTableRow += "<td>$(($server.Server).Split(".")[0])</td>"
+				$htmlTableRow += "<td>$($server.Role)</td>"
+				$htmlTableRow += "<td>$($server.Hardware)</td>"
+				if ($server.vmTools -match "(Up-to-date|N/A)"){
+					$htmlTableRow += "<td>$($server.vmTools)</td>"
+				}elseif($server.vmTools -match "Not Installed"){
+					$htmlTableRow += "<td class=""fail"">$($server.vmTools)</td>"
+					$siteFailItems += "<li>VMware Tools is not installed on one or more servers detected as VMware.</li>"
+				}else{
+					$htmlTableRow += "<td class=""warn"">$($server.vmTools)</td>"
+					$siteWarnItems += "<li>VMware Tools is not up-to-date on one or more servers detected as VMware.</li>"
+				}
+				if ($server.Sockets -gt 2){
+					$htmlTableRow += "<td class=""warn"">$($server.Sockets)</td>"
+				}else{
+					$htmlTableRow += "<td>$($server.Sockets)</td>"
+				}
+				if (($server.Cores * $server.Sockets) -lt 6){
+					$htmlTableRow += "<td class=""warn"">$($server.Cores)</td>"
+				}else{
+					$htmlTableRow += "<td>$($server.Cores)</td>"
+				}
+				if ($server.Memory -lt 16){
+					$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
+					$htmlTableRow += "<td class=""warn"">$($server.Memory)</td>"
+				}else{
+					$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
+					$htmlTableRow += "<td>$($server.Memory)</td>"
+				}
+				$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
+				if ($server.HDD.FreeSpaceGB -lt 32){
+					$htmlTableRow += "<td class=""warn""><ul style='margin: 0;'>"
+					foreach ($hdd in $server.HDD){
+						$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
+					}
+				}else{
+					$htmlTableRow += "<td><ul style='margin: 0;'>"
+					foreach ($hdd in $server.HDD){
+						$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
+					}
+				}
+				$htmlTableRow += "</ul></td>"
+				if ($server.PowerPlan -eq "High Performance"){
+					$htmlTableRow += "<td>$($server.PowerPlan)</td>"
+				}else{
+					$htmlTableRow += "<td class=""fail"">$($server.PowerPlan)</td>"
+					$siteFailItems += "<li>One or more servers' power plan is not set to high performance. See <a href='https://support.microsoft.com/en-us/help/2207548/slow-performance-on-windows-server-when-using-the-balanced-power-plan' target='_blank'>KB2207548</a>.</li>"
+				}
+				if ($server.Uptime -gt 2160){
+					$htmlTableRow += "<td class=""warn"">$($server.Uptime)</td>"
+				}else{
+					$htmlTableRow += "<td>$($server.Uptime)</td>"
+				}
+				if ($server.OS -notmatch "Server (2012|2012 R2|2008 R2)"){
+					$htmlTableRow += "<td class=""fail"">$($server.OS -replace 'Microsoft Windows ','')</td>"
+					$siteFailItems += "<li>One or more servers was not running a supported OS. See <a href='https://technet.microsoft.com/en-us/library/dn951388.aspx?f=255&mspperror=-2147217396#Anchor_1' target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>"
+				}else{
+					$htmlTableRow += "<td>$($server.OS -replace 'Microsoft Windows ','')</td>"
+				}
+				if ($server.DotNet -notmatch "(4.6.2|4.5.2)"){
+					$htmlTableRow += "<td class=""warn"">$($server.DotNet)</td>"
+					$siteWarnItems += "<li>.NET Framework is not up-to-date on one or more servers. Version 4.5.2 or 4.6.2 is recommended. See <a href='https://blogs.technet.microsoft.com/nexthop/2016/02/11/on-net-framework-4-6-2-and-skype-for-businesslync-server-compatibility/'  target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a></li>"
+				}else{
+					$htmlTableRow += "<td>$($server.DotNet)</td>"
+				}
+				if ($server.DnsCheck -ne "Pass"){
+					$htmlTableRow += "<td class=""fail"">$($server.DnsCheck)</td>"
+				}else{
+					$htmlTableRow += "<td>$($server.DnsCheck)</td>"
+				}
+				if ($server.LastUpdate -lt (Get-Date).addDays(-90)){
+					$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
+					$htmlTableRow += "<td class=""warn"">$($server.LastUpdate)</td>"
+				}else{
+					$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
+					$htmlTableRow += "<td>$($server.LastUpdate)</td>"
+				}
+			}else{
+				$htmlTableRow += "<td class=""fail"">$(($server.Server).Split(".")[0])</td>"
+				if (!($server.Connectivity)){
+					$siteFailItems += "<li>One or more servers were not accessible or offline.</li>"
+				}elseif (!($server.Permission)){
+					$siteFailItems += "<li>One or more servers could not be queried due to permissions. Verify the user generating this report has local administrator rights on each server.</li>"
+				}
+				$htmlTableRow += "<td>$($server.Role)</td>"
+				$htmlTableRow += "<td>$($server.Hardware)</td>"
+				$htmlTableRow += "<td>$($server.vmTools)</td>"
+				$htmlTableRow += "<td>$($server.Sockets)</td>"
+				$htmlTableRow += "<td>$($server.Cores)</td>"
+				$htmlTableRow += "<td>$($server.Memory)</td>"
+				$htmlTableRow += "<td><ul style='margin: 0;'>"
+				foreach ($hdd in $server.HDD){
+					$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
+				}
+				$htmlTableRow += "</ul></td>"
+				$htmlTableRow += "<td>$($server.PowerPlan)</td>"
+				$htmlTableRow += "<td>$($server.Uptime)</td>"
+				$htmlTableRow += "<td>$($server.OS -replace 'Microsoft Windows ','')</td>"
+				$htmlTableRow += "<td>$($server.DotNet)</td>"
+				$htmlTableRow += "<td>$($server.DnsCheck)</td>"
+				$htmlTableRow += "<td>$($server.LastUpdate)</td>"
+			}
+			$htmlTableRow += "</tr>"
+			
+			## Build servers HTML table rows
+			<# $htmlTableRow = "<tr>"
 			$htmlTableRow += "<td><b>$(($server.Pool).Split(".")[0])</b></td>"
 			$htmlTableRow += "<td class=""$($style.Server)"">$(($server.Server).Split(".")[0])</td>"
 			$htmlTableRow += "<td>$($server.Role)</td>"
@@ -344,7 +437,7 @@ foreach ($site in $sites){
 			$htmlTableRow += "<td class=""$($style.DotNet)"">$($server.DotNet)</td>"
 			$htmlTableRow += "<td class=""$($style.DNS)"">$($server.DnsCheck)</td>"
 			$htmlTableRow += "<td class=""$($style.LastUpdate)"">$($server.LastUpdate)</td>"
-			$htmlTableRow += "</tr>"
+			$htmlTableRow += "</tr>" #>
 			
 			$siteServersHtmlTable += $htmlTableRow
 		}
@@ -355,37 +448,67 @@ foreach ($site in $sites){
 			<p>
 			<table class=""csservers"">
 			<tr>
-			<th>Pool</th>
-			<th>Server</th>
-			<th>Role</th>
-			<th>Hardware</th>
-			<th>VMware Tools</th>
-			<th>Sockets</th>
-			<th>Cores</th>
-			<th>Memory</th>
-			<th>HDD</th>
-			<th>Power Plan</th>
-			<th>Uptime</th>
-			<th>OS</th>
-			<th>.NET</th>
-			<th>DNS</th>
-			<th>Last Update</th>
+			<th width=""100px"">Pool</th>
+			<th width=""100px"">Server</th>
+			<th width=""60px"">Role</th>
+			<th width=""100px"">Hardware</th>
+			<th width=""70px"">VMware Tools</th>
+			<th width=""40px"">Sockets</th>
+			<th width=""40px"">Cores</th>
+			<th width=""40px"">Memory</th>
+			<th width=""130px"">HDD</th>
+			<th width=""100px"">Power Plan</th>
+			<th width=""40px"">Uptime</th>
+			<th width=""120px"">OS</th>
+			<th width=""30px"">.NET</th>
+			<th width=""30px"">DNS</th>
+			<th width=""50px"">Last Update</th>
 			</tr>
 			$siteServersHtmlTable
 			</table>
 			</p>"
+		
+		if ($siteFailItems){
+			$siteHtmlFail = "<p>Failed Items</p>
+				<ul>
+				$($siteFailItems | Select-Object -Unique)
+				</ul>"
+		}else{
+			$siteHtmlFail = $null
+		}
+		if ($siteWarnItems){
+			$siteHtmlWarn = "<p>Warning Items</p>
+				<ul>
+				$($siteWarnItems | Select-Object -Unique)
+				</ul>"
+		}else{
+			$siteHtmlWarn = $null
+		}
+		if ($siteInfoItems){
+			$siteHtmlInfo = "<p>Info Items</p>
+				<ul>
+				$($siteInfoItems | Select-Object -Unique)
+				</ul>"
+		}else{
+			$siteHtmlInfo = $null
+		}
+		
+		$siteHtmlBody = "$siteHtmlBody
+			$siteHtmlFail
+			$siteHtmlWarn
+			$siteHtmlInfo"
 	}
 }
 
 ## Header
 $HtmlHead = "<html>
 	<style>
-	BODY{font-family: Arial; font-size: 10pt;}
+	BODY{font-family: Calibri; font-size: 11pt; margin-top: 10px; margin-bottom: 60px;}
 	H1{font-size: 22px;}
-	H2{font-size: 20px; padding-top: 10px;}
-	H3{font-size: 16px; padding-top: 8px;}
-	TABLE{border: 1px solid black; border-collapse: collapse; font-size: 8pt; table-layout: fixed;}
-	TABLE.csservers{table-layout: auto; width: 850px;}
+	H2{font-size: 19px; padding-top: 10px;}
+	H3{font-size: 17px; padding-top: 8px;}
+	TABLE{border: 1px solid black; border-collapse: collapse; font-size: 9pt; table-layout: fixed;}
+	TABLE.csservers{table-layout: fixed;}
 	TABLE.testresults{width: 850px;}
 	TABLE.summary{text-align: center; width: auto;}
 	TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
@@ -396,19 +519,26 @@ $HtmlHead = "<html>
 	TH.comments{width: 120px;}
 	TH.details{width: 270px;}
 	TH.reference{width: 60px;}
-	TD{border: 1px solid black; padding: 5px; vertical-align: top;}
+	TD{border: 1px solid black; padding: 5px; vertical-align: top; word-wrap:break-word;}
 	td.pass{background: #7FFF00;}
 	td.warn{background: #FFFF00;}
 	td.fail{background: #FF0000; color: #ffffff;}
 	td.info{background: #85D4FF;}
-	td.none{}
-	ul{list-style: inside; padding-left: 0px;}
+	tr:nth-child(even){background: #dae5f4;}
+	tr:nth-child(odd){background: #b8d1f3;}
+	ul.hdd{list-style: inside; padding-left: 0px; list-style-type:square;}
+	ul{list-style: inside; padding-left: 0px; list-style-type:square; margin: -10px 0;}
 	</style>
 	<body>
 	<h1>Skype for Business Report</h1>
 	<p>Generated: $(Get-Date)</p>"
 
 ## Active Directory
+foreach ($suffix in $($adForest.UPNSuffixes)){
+	$adSuffixes += "<li>$suffix</li>"
+}
+
+
 ## Build AD site HTML list
 foreach ($site in $($adForest.Sites)){
 	$adSites += "<li>$site</li>"
@@ -422,8 +552,12 @@ $adHtmlBody = "<h2>Environment Overview</h2>
 	<b>Forest Mode:</b> $($adForest.ForestMode)</br>
 	<b>Domain Name:</b> $($adDomain.DNSRoot) ($($adDomain.NetBIOSName))</br>
 	<b>Domain Mode:</b> $($adDomain.DomainMode)</br>
-	<b>UPN Suffixes:</b> $($adForest.UPNSuffixes)</br>
-	<b>Sites:</b></br>
+	<b>UPN Suffixes:</b>
+	<ul>
+	$adSuffixes
+	</ul>
+	</p>
+	<p><b>Sites:</b>
 	<ul>
 	$adSites
 	</ul>
@@ -431,7 +565,8 @@ $adHtmlBody = "<h2>Environment Overview</h2>
 	
 ## Convert Domain Controlers to HTML and combine with AD body
 if ($adDomainControllers){
-	$adHtmlBody += "<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>"
+	$adHtmlBody += "<h3>Domain Controllers</h3>
+		<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>"
 }
 
 ## Certificate Authorities
@@ -441,23 +576,27 @@ if ($CAs){
 		$htmlTableRow = "<tr>"
 		$htmlTableRow += "<td>$($ca.CommonName)</td>"
 		$htmlTableRow += "<td>$($ca.Server)</td>"
-		if ($ca.Online){$style="none"}else{$style="fail"}
-		$htmlTableRow += "<td class=""$style"">$($ca.Online)</td>"
-		
-		if (!($ca.Online)){$caWarnMessages += "<li>$($ca.Server): Server is unavailable.</li>"}
-		if (!($ca.WebServerTemplate)){$caWarnMessages += "<li>$($ca.Server): Web server template is unavailable.</li>"}
+		if ($ca.Online){
+			$htmlTableRow += "<td>$($ca.Online)</td>"
+			if (!($ca.WebServerTemplate)){
+				$caWarnItems += "<li>$($ca.Server): Web server template is unavailable.</li>"
+			}
+		}else{
+			$htmlTableRow += "<td class=""fail"">$($ca.Online)</td>"
+			$caWarnItems += "<li>$($ca.Server): CA server is unavailable.</li>"
+		}
 		
 		$caHtmlTable += $htmlTableRow
 	}
 	
-	if ($caWarnMessages){
+	if ($caWarnItems){
 		$caHtmlWarn = "<p>Warning Items</p>
 			<ul>
-			$caWarnMessages
+			$caWarnItems
 			</ul>"
 	}
 	
-	$caHtmlBody = "<h3>Certificate Authority</h3>
+	$caHtmlBody = "<h3>Certificate Authorities</h3>
 		<table>
 		<tr>
 		<th>Common Name</th>
@@ -469,50 +608,82 @@ if ($CAs){
 		$caHtmlWarn"
 }
 
-## Global Users Summary
-<# if ($globalSummary."AD Disabled" -gt 0){$userWarnMessages += "<li>Users exist that are disabled in AD but are enabled for Skype4B. These users may still be able to login to Skype4B.</li>"}
-
-## Build test HTML table rows
-foreach ($test in $tests){
-	$htmlTableRow = "<tr>"
-	$htmlTableRow += "<td class=""test"">$($test.test)</td>"
-	$htmlTableRow += "<td class=""description"">$($test.description)</td>"
-	$htmlTableRow += "<td class=""outcome"">$($test.outcome)</td>"
-	$htmlTableRow += "<td class=""comments"">$($test.comments)</td>"
-	$htmlTableRow += "<td class=""details"">$($test.details)</td>"
-	$htmlTableRow += "<td class=""reference"">$($test.reference)</td>"
-	$htmlTableRow += "</tr>"
-
-	$userTestHtmlTable += $htmlTableRow
+## Generate global CS HTML
+## Generate CMS HTML
+$cmsHtml = "<b>Active CMS:</b> $(($csSummary.CMS | where Active -eq $true).PoolFqdn)"
+if ($csSummary.CMS | where Active -eq $false){
+	$cmsHtml += "</br><b>Backup CMS:</b> $(($csSummary.CMS | where Active -eq $false).PoolFqdn)"
 }
 
-$userHtmlBody = "<h3>Summary</h3>
-	<p>$($globalSummary | ConvertTo-Html -As Table -Fragment)</p>
-	<table class=""testresults"">
-	<tr>
-	<th class=""test"">Test</th>
-	<th class=""description"">Description</th>
-	<th class=""outcome"">Outcome</th>
-	<th class=""comments"">Comments</th>
-	<th class=""details"">Details</th>
-	<th class=""reference"">Reference</th>
-	$userTestHtmlTable
-	</table>" #>
+## Generate SIP domains HTML
+foreach ($sipDomain in $($csSummary.SipDomain)){
+	if ($sipDomain.IsDefault){
+		$sipDomainHtml += "<li>$($sipDomain.Name) (Default)</li>"
+	}else{
+		$sipDomainHtml += "<li>$($sipDomain.Name)</li>"
+	}
+}
+
+## Generate meet URLs HTML
+foreach ($meetUrl in $($csSummary.MeetUrl)){
+	$meetUrlHtml += "<li>$($meetUrl.ActiveUrl) ($($meetUrl.Domain))</li>"
+}
+
+## Generate dialin URLs HTML
+foreach ($dialinUrl in $($csSummary.DialinUrl)){
+	$dialinUrlHtml += "<li>$($dialinUrl.ActiveUrl) ($($dialinUrl.Domain))</li>"
+}
+
+## Generate CS topology info HTML
+$topologyHtml = "<p>$cmsHtml
+	</br><b>SIP Domains:</b>
+	<ul>
+	$sipDomainHtml
+	</ul></p>
+	<p><b>Meet URLs:</b>
+	<ul>
+	$meetUrlHtml
+	</ul></p>
+	<p><b>Dailin URLs:</b>
+	<ul>
+	$dialinUrlHtml
+	</ul></p>
+	<p><b>Admin URL:</b> $($csSummary.AdminUrl.ActiveUrl)</p>"
+
+
+## Global Users Summary
 
 
 ## Generate warning messages
-if ($globalSummary."AD Disabled" -gt 0){$userWarnMessages += "<li>Users exist that are disabled in AD but are enabled for Skype4B. These users may still be able to login to Skype4B.</li>"}
+if ($globalSummary."Address Mismatch" -gt 0){$userWarnItems += "<li>Users exist whose SIP address and primary STMP addresses do not match. This will cause Exchange integration issues for these users. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' target='_blank'>Address Mistmatch</a>.</li>"}
+if ($globalSummary."AD Disabled" -gt 0){$userWarnItems += "<li>Users exist that are disabled in AD but are enabled for Skype4B. These users may still be able to login to Skype4B. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests/_edit#ad-disabled' target='_blank'>AD Disabled</a>.</li>"}
+if ($globalSummary."Admin Users" -gt 0){$userInfoItems += "<li>Users exist with adminCount greater than 0. Attempts to modify these users Skype4B configurations may fail with access denied. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"}
 
-if ($userWarnMessages){
+if ($userFailItems){
+	$userHtmlFail = "<p>Failed Items</p>
+		<ul>
+		$userFailItems
+		</ul>"
+}
+if ($userWarnItems){
 	$userHtmlWarn = "<p>Warning Items</p>
 		<ul>
-		$userWarnMessages
+		$userWarnItems
+		</ul>"
+}
+if ($userInfoItems){
+	$userHtmlInfo = "<p>Info Items</p>
+		<ul>
+		$userInfoItems
 		</ul>"
 }
 
-$userHtmlBody += "<h3>Summary</h3>
+$globalCsHtmlBody += "<h3>Skype for Business Server</h3>
+	$topologyHtml
 	<p>$($globalSummary | ConvertTo-Html -As Table -Fragment)</p>
-	$userHtmlWarn"
+	$userHtmlFail
+	$userHtmlWarn
+	$userHtmlInfo"
 
 ## Sites
 
@@ -521,7 +692,7 @@ $userHtmlBody += "<h3>Summary</h3>
 $HtmlTail = "</body>
 	</html>"
 
-$htmlReport = $HtmlHead + $adHtmlBody + $caHtmlBody + $userHtmlBody + $siteHtmlBody + $HtmlTail
+$htmlReport = $HtmlHead + $adHtmlBody + $caHtmlBody + $globalCsHtmlBody + $siteHtmlBody + $HtmlTail
 
 $htmlReport | Out-File CsReport.html -Encoding UTF8
 
