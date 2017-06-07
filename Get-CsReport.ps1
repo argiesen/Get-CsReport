@@ -302,13 +302,13 @@ foreach ($site in $sites){
 					if (!($server.Sockets)){$server.Sockets = 1}
 					$server.Cores = $processors[0].NumberOfCores * $server.Sockets
 					$server.Memory = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server | `
-					Select-Object @{l='TotalMemory';e={"{0:N2}" -f ($_.TotalVisibleMemorySize/1MB)}}).TotalMemory
+						Select-Object @{l='TotalMemory';e={"{0:N2}" -f ($_.TotalVisibleMemorySize/1MB)}}).TotalMemory
 					$server.HDD = Get-WmiObject Win32_Volume -Filter 'DriveType = 3' -ComputerName $server.Server | Where-Object DriveLetter -ne $null | `
-					Select-Object DriveLetter,Label,@{l='CapacityGB';e={$_.Capacity/1GB}},@{l='FreeSpaceGB';e={$_.FreeSpace/1GB}},@{l='FreeSpacePercent';e={($_.FreeSpace/$_.Capacity)*100}}
+						Select-Object DriveLetter,Label,@{l='CapacityGB';e={$_.Capacity/1GB}},@{l='FreeSpaceGB';e={$_.FreeSpace/1GB}},@{l='FreeSpacePercent';e={($_.FreeSpace/$_.Capacity)*100}}
 					$server.PowerPlan = (Get-WmiObject Win32_PowerPlan -ComputerName $server.Server -Namespace root\cimv2\power -Filter "IsActive='$true'").ElementName
 					$boot = Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server
 					$server.Uptime = (($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Days * 24) + `
-					($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours
+						($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours
 					$server.OS = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server).Caption
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
 					$server.DotNet = $VersionHashNDP.Item($server.DotNet)
@@ -344,14 +344,16 @@ foreach ($site in $sites){
 				if (($server.Sockets -eq $server.Cores) -and ($server.Sockets -gt 1)){
 					$htmlTableRow += "<td class=""warn"">$($server.Sockets)</td>"
 					$siteWarnItems += "<li>One or more servers' CPU sockets is equal to cores. See `
-					<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
+						<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' `
+						target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
 				}else{
 					$htmlTableRow += "<td>$($server.Sockets)</td>"
 				}
 				if ($server.Cores -lt 4){
 					$htmlTableRow += "<td class=""warn"">$($server.Cores)</td>"
 					$siteWarnItems += "<li>One or more servers' total cores is less than 4. See `
-					<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
+						<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' `
+						target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
 				}else{
 					$htmlTableRow += "<td>$($server.Cores)</td>"
 				}
@@ -382,8 +384,8 @@ foreach ($site in $sites){
 				}else{
 					$htmlTableRow += "<td class=""fail"">$($server.PowerPlan)</td>"
 					$siteFailItems += "<li>One or more servers' power plan is not set to high performance. See `
-					<a href='https://support.microsoft.com/en-us/help/2207548/slow-performance-on-windows-server-when-using-the-balanced-power-plan' `
-					target='_blank'>KB2207548</a>.</li>"
+						<a href='https://support.microsoft.com/en-us/help/2207548/slow-performance-on-windows-server-when-using-the-balanced-power-plan' `
+						target='_blank'>KB2207548</a>.</li>"
 				}
 				if ($server.Uptime -gt 2160){
 					$htmlTableRow += "<td class=""warn"">$($server.Uptime)</td>"
@@ -393,21 +395,21 @@ foreach ($site in $sites){
 				if ($server.OS -match "Server 2008 R2"){
 					$htmlTableRow += "<td class=""fail"">$($server.OS -replace 'Microsoft Windows ','')</td>"
 					$siteFailItems += "<li>One or more servers is running Server 2008 R2 which is End-of-Life. See `
-					<a href='https://technet.microsoft.com/en-us/library/dn951388.aspx?f=255&mspperror=-2147217396#Anchor_1' `
-					target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>"
+						<a href='https://technet.microsoft.com/en-us/library/dn951388.aspx?f=255&mspperror=-2147217396#Anchor_1' `
+						target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>"
 				}elseif ($server.OS -notmatch "Server (2012|2012 R2)"){
 					$htmlTableRow += "<td class=""fail"">$($server.OS -replace 'Microsoft Windows ','')</td>"
 					$siteFailItems += "<li>One or more servers is not running a supported OS. See `
-					<a href='https://technet.microsoft.com/en-us/library/dn951388.aspx?f=255&mspperror=-2147217396#Anchor_1' `
-					target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>"
+						<a href='https://technet.microsoft.com/en-us/library/dn951388.aspx?f=255&mspperror=-2147217396#Anchor_1' `
+						target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>"
 				}else{
 					$htmlTableRow += "<td>$($server.OS -replace 'Microsoft Windows ','')</td>"
 				}
 				if ($server.DotNet -notmatch "(4.6.2|4.5.2)"){
 					$htmlTableRow += "<td class=""warn"">$($server.DotNet)</td>"
 					$siteWarnItems += "<li>One or more servers .NET Framework is out-of-date. Version 4.5.2 or 4.6.2 is recommended. See `
-					<a href='https://blogs.technet.microsoft.com/nexthop/2016/02/11/on-net-framework-4-6-2-and-skype-for-businesslync-server-compatibility/' `
-					target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a></li>"
+						<a href='https://blogs.technet.microsoft.com/nexthop/2016/02/11/on-net-framework-4-6-2-and-skype-for-businesslync-server-compatibility/' `
+						target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a></li>"
 				}else{
 					$htmlTableRow += "<td>$($server.DotNet)</td>"
 				}
@@ -429,7 +431,7 @@ foreach ($site in $sites){
 					$siteFailItems += "<li>One or more servers are not accessible or offline.</li>"
 				}elseif (!($server.Permission)){
 					$siteFailItems += "<li>One or more servers could not be queried due to permissions. `
-					Verify the user generating this report has local administrator rights on each server.</li>"
+						Verify the user generating this report has local administrator rights on each server.</li>"
 				}
 				$htmlTableRow += "<td>$($server.Role)</td>"
 				$htmlTableRow += "<td>$($server.Version)</td>"
@@ -674,17 +676,17 @@ foreach ($dialinUrl in $($csSummary.DialinUrl)){
 ## Generate CS topology info HTML
 $topologyHtml = "<p>$cmsHtml
 	</br><b>SIP Domains:</b>
-	<ul>
-	$sipDomainHtml
-	</ul></p>
+		<ul>
+		$sipDomainHtml
+		</ul></p>
 	<p><b>Meet URLs:</b>
-	<ul>
-	$meetUrlHtml
-	</ul></p>
+		<ul>
+		$meetUrlHtml
+		</ul></p>
 	<p><b>Dailin URLs:</b>
-	<ul>
-	$dialinUrlHtml
-	</ul></p>
+		<ul>
+		$dialinUrlHtml
+		</ul></p>
 	<p><b>Admin URL:</b> $($csSummary.AdminUrl.ActiveUrl)</p>"
 
 
@@ -692,15 +694,21 @@ $topologyHtml = "<p>$cmsHtml
 
 
 ## Generate warning messages
-if ($globalSummary."Address Mismatch" -gt 0){$userWarnItems += "<li>Users exist whose SIP address and primary STMP addresses do not match. `
-	This will cause Exchange integration issues for these users. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' `
-	target='_blank'>Address Mistmatch</a>.</li>"}
-if ($globalSummary."AD Disabled" -gt 0){$userWarnItems += "<li>Users exist that are disabled in AD but are enabled for Skype4B. `
-	These users may still be able to login to Skype4B. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests/_edit#ad-disabled' `
-	target='_blank'>AD Disabled</a>.</li>"}
-if ($globalSummary."Admin Users" -gt 0){$userInfoItems += "<li>Users exist with adminCount greater than 0. `
-	Attempts to modify these users Skype4B configurations may fail with access denied. See `
-	<a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"}
+if ($globalSummary."Address Mismatch" -gt 0){
+	$userWarnItems += "<li>Users exist whose SIP address and primary STMP addresses do not match. `
+		This will cause Exchange integration issues for these users. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' `
+		target='_blank'>Address Mistmatch</a>.</li>"
+}
+if ($globalSummary."AD Disabled" -gt 0){
+	$userWarnItems += "<li>Users exist that are disabled in AD but are enabled for Skype4B. `
+		These users may still be able to login to Skype4B. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests/_edit#ad-disabled' `
+		target='_blank'>AD Disabled</a>.</li>"
+}
+if ($globalSummary."Admin Users" -gt 0){
+	$userInfoItems += "<li>Users exist with adminCount greater than 0. `
+		Attempts to modify these users Skype4B configurations may fail with access denied. See `
+		<a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
+}
 
 if ($userFailItems){
 	$userHtmlFail = "<p>Failed Items</p>
