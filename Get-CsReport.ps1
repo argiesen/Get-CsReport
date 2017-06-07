@@ -57,6 +57,7 @@ public static extern bool CertSrvIsServerOnline(
 	}
 }
 
+$Timing = $true
 
 #https://msdn.microsoft.com/en-us/library/hh925568%28v=vs.110%29.aspx
 $VersionHashNDP = @{
@@ -76,14 +77,22 @@ $VersionHashNDP = @{
 	460805="4.7"
 }
 
+#Start total time
+$StopWatch = [system.diagnostics.stopwatch]::startNew()
+
+#Download Pat Richard's CS version XML
 try {
-[xml]$VersionXmlCs = (New-Object System.Net.WebClient).DownloadString("https://www.ucunleashed.com/downloads/2641/version.xml")
+	[xml]$VersionXmlCs = (New-Object System.Net.WebClient).DownloadString("https://www.ucunleashed.com/downloads/2641/version.xml")
 }catch{
 	$VersionXmlCs = $false
 }
 
-## Gather summary info
+#Start all collect time
+$CollectStopWatch = [system.diagnostics.stopwatch]::startNew()
+#Start AD collect time
+$StepStopWatch = [system.diagnostics.stopwatch]::startNew()
 
+## Collect global info
 ## Collect AD forest properties
 $adForest = Get-ADForest | Select-Object `
 	Name,`
@@ -117,21 +126,7 @@ try {
 	#continue
 }
 
-## Collect users for global usage
-$users = Get-CsUser -ResultSize Unlimited -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-
-## Collect users who are disabled in AD but enabled in Skype
-$disabledAdUsers = Get-CsAdUser -ResultSize Unlimited | `
-	Where-Object {$_.UserAccountControl -match "AccountDisabled" -and $_.Enabled -eq $true} | `
-	Select-Object Name,Enabled,SipAddress
-
-## Collect analog devices
-$analogDevices = Get-CsAnalogDevice | Where-Object Enabled -eq $true
-	
-## Collect common area phones
-$commonAreaPhones = Get-CsCommonAreaPhone | Where-Object Enabled -eq $true
-
-## Find internal CAs
+## Collect internal CAs
 $adRoot = [ADSI]"LDAP://RootDSE"
 $adDN = $adRoot.Get("rootDomainNamingContext")
 $configRoot = [ADSI]"LDAP://CN=Configuration,$adDN"
@@ -164,22 +159,48 @@ foreach ($ca in $caResults){
 	$CAs += $caOut
 }
 
-## Create global user summary table and populate
-$globalSummary = "" | Select-Object Sites,Users,"Address Mismatch","AD Disabled","Admin Users","Voice Users","RCC Users","Analog","Common Area",RGS,Pools,Gateways
-$globalSummary.Sites = (Get-CsSite).Count
-$globalSummary.Users = ($users | Where-Object {$_.Enabled -eq $true}).Count
-$globalSummary."Address Mismatch" = (Get-CsAdUser | Where-Object {($_.WindowsEmailAddress -and $_.SipAddress) -and ($_.WindowsEmailAddress -ne ($_.SipAddress -replace "sip:",""))}).Count
-$globalSummary."AD Disabled" = $disabledAdUsers.Count
-$globalSummary."Admin Users" = (Get-AdUser -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | foreach{Get-CsUser $_.SamAccountName -ErrorAction SilentlyContinue}).Count
-$globalSummary."Voice Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true}).Count
-$globalSummary."RCC Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true}).Count
-$globalSummary."Analog" = $analogDevices.Count
-$globalSummary."Common Area" = $commonAreaPhones.Count
-$globalSummary.RGS = (Get-CsRgsWorkflow).Count
-$globalSummary.Pools = (Get-CsPool | Where-Object Services -match "Registrar").Count
-$globalSummary.Gateways = (Get-CsService -PstnGateway).Count
+#Stop AD collect time
+$StepStopWatch.Stop()
+if ($Timing){
+	Write-Host "AD collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+}
 
-## Gather global CS info
+#Start CS collect time
+$StepStopWatch = [system.diagnostics.stopwatch]::startNew()
+
+## Collect sites
+$csSites = Get-CsSite
+
+## Collect users for global usage
+$users = Get-CsUser -ResultSize Unlimited -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+
+## Collect users with address mismatch
+$addressMismatchUsers = Get-CsAdUser | Where-Object {($_.WindowsEmailAddress -and $_.SipAddress) -and ($_.WindowsEmailAddress -ne ($_.SipAddress -replace "sip:",""))}
+
+## Collect users who are disabled in AD but enabled in Skype
+$disabledAdUsers = Get-CsAdUser -ResultSize Unlimited | `
+	Where-Object {$_.UserAccountControl -match "AccountDisabled" -and $_.Enabled -eq $true} | `
+	Select-Object Name,Enabled,SipAddress
+
+## Collect admin users
+$adminUsers = Get-AdUser -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | foreach{Get-CsUser $_.SamAccountName -ErrorAction SilentlyContinue}
+	
+## Collect analog devices
+$analogDevices = Get-CsAnalogDevice | Where-Object Enabled -eq $true
+	
+## Collect common area phones
+$commonAreaPhones = Get-CsCommonAreaPhone | Where-Object Enabled -eq $true
+
+## Collect RGS workflows
+$rgsWorkflows = Get-CsRgsWorkflow | Where-Object Enabled -eq $true
+
+## Collect CS pools
+$csPools = Get-CsPool | Where-Object Services -match "Registrar"
+
+## Collect CS gateways
+$csGateways = Get-CsService -PstnGateway
+
+## Collect global CS info
 $csSummary = "" | Select-Object CMS,SipDomain,MeetUrl,DialinUrl,AdminUrl
 $csSummary.CMS = Get-CsService -CentralManagement | Select-Object SiteId,PoolFqdn,Version,Active
 $csSummary.SipDomain = Get-CsSipDomain
@@ -187,9 +208,36 @@ $csSummary.MeetUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandPropert
 $csSummary.DialinUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandProperty SimpleUrl | Where-Object {$_.Component -eq "dialin"}
 $csSummary.AdminUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandProperty SimpleUrl | Where-Object {$_.Component -eq "cscp"}
 
-## Gather sites info
+## Collect sites info
 $sites = Get-CsSite | Select-Object Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Gateways
 $pools = Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director"
+
+#Stop CS collect time
+$StepStopWatch.Stop()
+if ($Timing){
+	Write-Host "CS collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+}
+
+#Stop all collect time
+$CollectStopWatch.Stop()
+if ($Timing){
+	Write-Host "Collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+}
+
+## Create global user summary table and populate
+$globalSummary = "" | Select-Object Sites,Users,"Address Mismatch","AD Disabled","Admin Users","Voice Users","RCC Users","Analog","Common Area",RGS,Pools,Gateways
+$globalSummary.Sites = $csSites.Count
+$globalSummary.Users = ($users | Where-Object {$_.Enabled -eq $true}).Count
+$globalSummary."Address Mismatch" = $addressMismatchUsers.Count
+$globalSummary."AD Disabled" = $disabledAdUsers.Count
+$globalSummary."Admin Users" = $adminUsers.Count
+$globalSummary."Voice Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true}).Count
+$globalSummary."RCC Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true}).Count
+$globalSummary."Analog" = $analogDevices.Count
+$globalSummary."Common Area" = $commonAreaPhones.Count
+$globalSummary.RGS = $rgsWorkflows.Count
+$globalSummary.Pools = $csPools.Count
+$globalSummary.Gateways = $csGateways.Count
 
 ## Process each site in topology for site summary, then server summary
 foreach ($site in $sites){
@@ -241,6 +289,9 @@ foreach ($site in $sites){
 			
 			## Process servers in pool
 			foreach ($server in $servers){
+				#Start server collect time
+				$StepStopWatch = [system.diagnostics.stopwatch]::startNew()
+				
 				if ($pool.Services -match "Registrar" -and $pool.Services -match "UserServer"){
 					$server.Role = "Front End"
 				}elseif ($pool.Services -match "Registrar"){
@@ -270,7 +321,7 @@ foreach ($site in $sites){
 					$server.Version = (Get-WmiObject Win32_Product -ComputerName $server.Server | Where-Object Name -match "(Lync Server|Skype for Business Server)" | `
 					Where-Object Name -notmatch "(Debugging Tools|Resource Kit)" | Select-Object Name,Version | Sort-Object Version -Descending)[0].Version
 					if ($VersionXmlCs){
-						$server.Version = "$($server.Version) ($(($VersionXmlCs.catalog.UpdateVersion | Where-Object Id -eq $server.Version).UpdateName))"
+						$server.Version = "$($server.Version)<br />($(($VersionXmlCs.catalog.UpdateVersion | Where-Object Id -eq $server.Version).UpdateName))"
 					}else{
 						$server.Version = "$($server.Version)"
 					}
@@ -315,6 +366,13 @@ foreach ($site in $sites){
 					if (Resolve-DnsName $server.Server -DnsOnly -Type A -QuickTimeout){$server.DnsCheck = "Pass"}else{$server.DnsCheck = "Fail"}
 					$server.LastUpdate = ((Get-HotFix -ComputerName $server.Server | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue)[0]).InstalledOn
 				}
+				
+				#Stop server collect time
+				$StepStopWatch.Stop()
+				if ($Timing){
+					Write-Host $server.server
+					Write-Host "Server collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+				}
 			}
 			
 			## Aggregate servers from each pool in site
@@ -324,6 +382,9 @@ foreach ($site in $sites){
 		$siteServersHtmlTable = $null
 		
 		foreach ($server in $siteServers){
+			#Start server html time
+			$StepStopWatch = [system.diagnostics.stopwatch]::startNew()
+			
 			## Perform tests and build servers HTML table rows
 			$htmlTableRow = "<tr>"
 			$htmlTableRow += "<td><b>$(($server.Pool).Split(".")[0])</b></td>"
@@ -478,6 +539,13 @@ foreach ($site in $sites){
 			$htmlTableRow += "</tr>" #>
 			
 			$siteServersHtmlTable += $htmlTableRow
+			
+			#Stop server HTML time
+			$StepStopWatch.Stop()
+			if ($Timing){
+				Write-Host $server.server
+				Write-Host "Server HTML: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+			}
 		}
 		
 		## Convert site header, site summary, and site server summary to HTML and combine with body
@@ -489,14 +557,14 @@ foreach ($site in $sites){
 			<th width=""100px"">Pool</th>
 			<th width=""100px"">Server</th>
 			<th width=""60px"">Role</th>
-			<th width=""140px"">Version</th>
+			<th width=""80px"">Version</th>
 			<th width=""100px"">Hardware</th>
 			<th width=""70px"">VMware Tools</th>
 			<th width=""40px"">Sockets</th>
 			<th width=""40px"">Cores</th>
 			<th width=""40px"">Memory</th>
 			<th width=""130px"">HDD</th>
-			<th width=""100px"">Power Plan</th>
+			<th width=""95px"">Power Plan</th>
 			<th width=""40px"">Uptime</th>
 			<th width=""120px"">OS</th>
 			<th width=""30px"">.NET</th>
@@ -538,6 +606,9 @@ foreach ($site in $sites){
 			$siteHtmlInfo"
 	}
 }
+
+#Start HTML build time
+$StepStopWatch = [system.diagnostics.stopwatch]::startNew()
 
 ## Header
 $HtmlHead = "<html>
@@ -587,10 +658,10 @@ foreach ($site in $($adForest.Sites)){
 $adHtmlBody = "<h2>Environment Overview</h2>
 	<p></p>
 	<h3>Active Directory</h3>
-	<p><b>Forest Name:</b> $($adForest.Name)</br>
-	<b>Forest Mode:</b> $($adForest.ForestMode)</br>
-	<b>Domain Name:</b> $($adDomain.DNSRoot) ($($adDomain.NetBIOSName))</br>
-	<b>Domain Mode:</b> $($adDomain.DomainMode)</br>
+	<p><b>Forest Name:</b> $($adForest.Name)<br />
+	<b>Forest Mode:</b> $($adForest.ForestMode)<br />
+	<b>Domain Name:</b> $($adDomain.DNSRoot) ($($adDomain.NetBIOSName))<br />
+	<b>Domain Mode:</b> $($adDomain.DomainMode)<br />
 	<b>UPN Suffixes:</b>
 	<ul>
 	$adSuffixes
@@ -651,7 +722,7 @@ if ($CAs){
 ## Generate CMS HTML
 $cmsHtml = "<b>Active CMS:</b> $(($csSummary.CMS | where Active -eq $true).PoolFqdn)"
 if ($csSummary.CMS | where Active -eq $false){
-	$cmsHtml += "</br><b>Backup CMS:</b> $(($csSummary.CMS | where Active -eq $false).PoolFqdn)"
+	$cmsHtml += "<br /><b>Backup CMS:</b> $(($csSummary.CMS | where Active -eq $false).PoolFqdn)"
 }
 
 ## Generate SIP domains HTML
@@ -675,7 +746,7 @@ foreach ($dialinUrl in $($csSummary.DialinUrl)){
 
 ## Generate CS topology info HTML
 $topologyHtml = "<p>$cmsHtml
-	</br><b>SIP Domains:</b>
+	<br /><b>SIP Domains:</b>
 		<ul>
 		$sipDomainHtml
 		</ul></p>
@@ -746,5 +817,17 @@ $HtmlTail = "</body>
 $htmlReport = $HtmlHead + $adHtmlBody + $caHtmlBody + $globalCsHtmlBody + $siteHtmlBody + $HtmlTail
 
 $htmlReport | Out-File CsReport.html -Encoding UTF8
+
+#Stop HTML build time
+$StepStopWatch.Stop()
+if ($Timing){
+	Write-Host "HTML build: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+}
+
+#Stop total time
+$StopWatch.Stop()
+if ($Timing){
+	Write-Host "Total: "$StopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+}
 
 .\CsReport.html
