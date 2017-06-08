@@ -200,6 +200,9 @@ $csPools = Get-CsPool | Where-Object Services -match "Registrar"
 ## Collect CS gateways
 $csGateways = Get-CsService -PstnGateway
 
+## Collect Management Replication
+$csMgmtReplication = (Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director|Edge|VideoInteropServer").Computers | ForEach-Object {Get-CsManagementStoreReplicationStatus -ReplicaFqdn $_} | Where-Object UpToDate -eq $false
+
 ## Collect global CS info
 $csSummary = "" | Select-Object CMS,SipDomain,MeetUrl,DialinUrl,AdminUrl
 $csSummary.CMS = Get-CsService -CentralManagement | Select-Object SiteId,PoolFqdn,Version,Active
@@ -470,7 +473,7 @@ foreach ($site in $sites){
 					$htmlTableRow += "<td class=""warn"">$($server.DotNet)</td>"
 					$siteWarnItems += "<li>One or more servers .NET Framework is out-of-date. Version 4.5.2 or 4.6.2 is recommended. See `
 						<a href='https://blogs.technet.microsoft.com/nexthop/2016/02/11/on-net-framework-4-6-2-and-skype-for-businesslync-server-compatibility/' `
-						target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a></li>"
+						target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a>.</li>"
 				}else{
 					$htmlTableRow += "<td>$($server.DotNet)</td>"
 				}
@@ -758,54 +761,59 @@ $topologyHtml = "<p>$cmsHtml
 		<ul>
 		$dialinUrlHtml
 		</ul></p>
-	<p><b>Admin URL:</b> $($csSummary.AdminUrl.ActiveUrl)</p>"
+	<p><b>Admin URL:</b> $($csSummary.AdminUrl.ActiveUrl)</p>
+	<p>$($csMgmtReplication | ConvertTo-Html -As Table -Fragment)</p>
+	<br />"
 
 
 ## Global Users Summary
 
 
-## Generate warning messages
+## Generate messages
 if ($globalSummary."Address Mismatch" -gt 0){
-	$userWarnItems += "<li>Users exist whose SIP address and primary STMP addresses do not match. `
+	$globalWarnItems += "<li>Users exist whose SIP address and primary STMP addresses do not match. `
 		This will cause Exchange integration issues for these users. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' `
 		target='_blank'>Address Mistmatch</a>.</li>"
 }
 if ($globalSummary."AD Disabled" -gt 0){
-	$userWarnItems += "<li>Users exist that are disabled in AD but are enabled for Skype4B. `
+	$globalWarnItems += "<li>Users exist that are disabled in AD but are enabled for Skype4B. `
 		These users may still be able to login to Skype4B. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests/_edit#ad-disabled' `
 		target='_blank'>AD Disabled</a>.</li>"
 }
 if ($globalSummary."Admin Users" -gt 0){
-	$userInfoItems += "<li>Users exist with adminCount greater than 0. `
+	$globalInfoItems += "<li>Users exist with adminCount greater than 0. `
 		Attempts to modify these users Skype4B configurations may fail with access denied. See `
 		<a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
 }
+if ($csMgmtReplication){
+	$globalFailItems += "<li>One or more servers' CMS replicas are not up to date.</li>"
+}
 
-if ($userFailItems){
-	$userHtmlFail = "<p>Failed Items</p>
+if ($globalFailItems){
+	$globalHtmlFail = "<p>Failed Items</p>
 		<ul>
-		$userFailItems
+		$globalFailItems
 		</ul>"
 }
-if ($userWarnItems){
-	$userHtmlWarn = "<p>Warning Items</p>
+if ($globalWarnItems){
+	$globalHtmlWarn = "<p>Warning Items</p>
 		<ul>
-		$userWarnItems
+		$globalWarnItems
 		</ul>"
 }
-if ($userInfoItems){
-	$userHtmlInfo = "<p>Info Items</p>
+if ($globalInfoItems){
+	$globalHtmlInfo = "<p>Info Items</p>
 		<ul>
-		$userInfoItems
+		$globalInfoItems
 		</ul>"
 }
 
 $globalCsHtmlBody += "<h3>Skype for Business Server</h3>
 	$topologyHtml
 	<p>$($globalSummary | ConvertTo-Html -As Table -Fragment)</p>
-	$userHtmlFail
-	$userHtmlWarn
-	$userHtmlInfo"
+	$globalHtmlFail
+	$globalHtmlWarn
+	$globalHtmlInfo"
 
 ## Sites
 
