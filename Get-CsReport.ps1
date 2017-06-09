@@ -201,7 +201,8 @@ $csPools = Get-CsPool | Where-Object Services -match "Registrar"
 $csGateways = Get-CsService -PstnGateway
 
 ## Collect Management Replication
-$csMgmtReplication = (Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director|Edge|VideoInteropServer").Computers | ForEach-Object {Get-CsManagementStoreReplicationStatus -ReplicaFqdn $_} | Where-Object UpToDate -eq $false
+$csMgmtReplication = (Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director|Edge|VideoInteropServer").Computers | `
+	ForEach-Object {Get-CsManagementStoreReplicationStatus -ReplicaFqdn $_} | Where-Object UpToDate -eq $false
 
 ## Collect global CS info
 $csSummary = "" | Select-Object CMS,SipDomain,MeetUrl,DialinUrl,AdminUrl
@@ -285,6 +286,7 @@ foreach ($site in $sites){
 				Uptime,`
 				OS,`
 				DotNet,`
+				Certs,`
 				DnsCheck,`
 				LastUpdate,`
 				Connectivity,`
@@ -364,6 +366,7 @@ foreach ($site in $sites){
 					$server.Uptime = (($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Days * 24) + `
 						($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours
 					$server.OS = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server).Caption
+					$server.Certs = Invoke-Command -ComputerName $server.Server -ScriptBlock {Get-CsCertificate}
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
 					$server.DotNet = $VersionHashNDP.Item($server.DotNet)
 					if (Resolve-DnsName $server.Server -DnsOnly -Type A -QuickTimeout){$server.DnsCheck = "Pass"}else{$server.DnsCheck = "Fail"}
@@ -407,7 +410,7 @@ foreach ($site in $sites){
 				}
 				if (($server.Sockets -eq $server.Cores) -and ($server.Sockets -gt 1)){
 					$htmlTableRow += "<td class=""warn"">$($server.Sockets)</td>"
-					$siteWarnItems += "<li>One or more servers' CPU sockets is equal to cores. See `
+					$siteWarnItems += "<li>One or more servers CPU sockets is equal to cores. See `
 						<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' `
 						target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
 				}else{
@@ -415,7 +418,7 @@ foreach ($site in $sites){
 				}
 				if ($server.Cores -lt 4){
 					$htmlTableRow += "<td class=""warn"">$($server.Cores)</td>"
-					$siteWarnItems += "<li>One or more servers' total cores is less than 4. See `
+					$siteWarnItems += "<li>One or more servers total cores is less than 4. See `
 						<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' `
 						target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
 				}else{
@@ -447,7 +450,7 @@ foreach ($site in $sites){
 					$htmlTableRow += "<td>$($server.PowerPlan)</td>"
 				}else{
 					$htmlTableRow += "<td class=""fail"">$($server.PowerPlan)</td>"
-					$siteFailItems += "<li>One or more servers' power plan is not set to high performance. See `
+					$siteFailItems += "<li>One or more servers power plan is not set to high performance. See `
 						<a href='https://support.microsoft.com/en-us/help/2207548/slow-performance-on-windows-server-when-using-the-balanced-power-plan' `
 						target='_blank'>KB2207548</a>.</li>"
 				}
@@ -476,6 +479,15 @@ foreach ($site in $sites){
 						target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a>.</li>"
 				}else{
 					$htmlTableRow += "<td>$($server.DotNet)</td>"
+				}
+				if ($server.Certs.NotAfter -lt (Get-Date).AddDays(30)){
+					$htmlTableRow += "<td class=""fail"">Fail</td>"
+					$siteFailItems += "<li>One or more servers certificates is expiring inside 30 days.</li>"
+				}elseif ($server.Certs.NotAfter -lt (Get-Date).AddDays(60)){
+					$htmlTableRow += "<td class=""warn"">Warn</td>"
+					$siteWarnItems += "<li>One or more servers certificates is expiring inside 60 days.</li>"
+				}else{
+					$htmlTableRow += "<td>Pass</td>"
 				}
 				if ($server.DnsCheck -ne "Pass"){
 					$htmlTableRow += "<td class=""fail"">$($server.DnsCheck)</td>"
@@ -513,6 +525,7 @@ foreach ($site in $sites){
 				$htmlTableRow += "<td>$($server.Uptime)</td>"
 				$htmlTableRow += "<td>$($server.OS -replace 'Microsoft Windows ','')</td>"
 				$htmlTableRow += "<td>$($server.DotNet)</td>"
+				$htmlTableRow += "<td>$($server.Certs)</td>"
 				$htmlTableRow += "<td>$($server.DnsCheck)</td>"
 				$htmlTableRow += "<td>$($server.LastUpdate)</td>"
 			}
@@ -571,6 +584,7 @@ foreach ($site in $sites){
 			<th width=""40px"">Uptime</th>
 			<th width=""120px"">OS</th>
 			<th width=""30px"">.NET</th>
+			<th width=""30px"">Certs</th>
 			<th width=""30px"">DNS</th>
 			<th width=""50px"">Last Update</th>
 			</tr>
@@ -747,6 +761,12 @@ foreach ($dialinUrl in $($csSummary.DialinUrl)){
 	$dialinUrlHtml += "<li>$($dialinUrl.ActiveUrl) ($($dialinUrl.Domain))</li>"
 }
 
+if ($csMgmtReplication){
+	$cmsReplicaHtml = "<p><b>Failed CMS Replicas:</b>
+		$($csMgmtReplication | ConvertTo-Html -As Table -Fragment)</p>
+		<br />"
+}
+
 ## Generate CS topology info HTML
 $topologyHtml = "<p>$cmsHtml
 	<br /><b>SIP Domains:</b>
@@ -762,8 +782,7 @@ $topologyHtml = "<p>$cmsHtml
 		$dialinUrlHtml
 		</ul></p>
 	<p><b>Admin URL:</b> $($csSummary.AdminUrl.ActiveUrl)</p>
-	<p>$($csMgmtReplication | ConvertTo-Html -As Table -Fragment)</p>
-	<br />"
+	$cmsReplicaHtml"
 
 
 ## Global Users Summary
@@ -772,21 +791,22 @@ $topologyHtml = "<p>$cmsHtml
 ## Generate messages
 if ($globalSummary."Address Mismatch" -gt 0){
 	$globalWarnItems += "<li>Users exist whose SIP address and primary STMP addresses do not match. `
-		This will cause Exchange integration issues for these users. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' `
-		target='_blank'>Address Mistmatch</a>.</li>"
+		This will cause Exchange integration issues for these users. `
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' target='_blank'>Address Mistmatch</a>.</li>"
 }
 if ($globalSummary."AD Disabled" -gt 0){
 	$globalWarnItems += "<li>Users exist that are disabled in AD but are enabled for Skype4B. `
-		These users may still be able to login to Skype4B. See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests/_edit#ad-disabled' `
-		target='_blank'>AD Disabled</a>.</li>"
+		These users may still be able to login to Skype4B. `
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests/_edit#ad-disabled' target='_blank'>AD Disabled</a>.</li>"
 }
 if ($globalSummary."Admin Users" -gt 0){
 	$globalInfoItems += "<li>Users exist with adminCount greater than 0. `
-		Attempts to modify these users Skype4B configurations may fail with access denied. See `
-		<a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
+		Attempts to modify these users Skype4B configurations may fail with access denied. `
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
 }
 if ($csMgmtReplication){
-	$globalFailItems += "<li>One or more servers' CMS replicas are not up to date.</li>"
+	$globalFailItems += "<li>One or more servers CMS replicas are not up to date. `
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#cms-replica-not-up-to-date' target='_blank'>CMS replica not up-to-date</a>.</li>"
 }
 
 if ($globalFailItems){
