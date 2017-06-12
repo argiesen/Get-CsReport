@@ -369,7 +369,11 @@ foreach ($site in $sites){
 					$boot = Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server | Select-Object LastBootUpTime,LocalDateTime
 					[int]$server.Uptime = (New-TimeSpan -Start $boot.LastBootUpTime -End $boot.LocalDateTime).TotalHours
 					$server.OS = (Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server).Caption
-					$server.Certs = Invoke-Command -ComputerName $server.Server -ScriptBlock {Get-CsCertificate}
+					$server.Certs = Invoke-Command -ComputerName $server.Server -ScriptBlock {
+						Get-CsCertificate | Foreach-Object {Get-ChildItem Cert:\LocalMachine\My | `
+							Where-Object Thumbprint -eq $_.Thumbprint} | `
+							Select-Object -Unique Subject,Issuer,NotAfter,@{l='SignatureAlgorithm';e={$_.SignatureAlgorithm.FriendlyName}}
+					}
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
 					$server.DotNet = $VersionHashNDP.Item($server.DotNet)
 					if (Resolve-DnsName $server.Server -DnsOnly -Type A -QuickTimeout){
@@ -487,12 +491,22 @@ foreach ($site in $sites){
 				}else{
 					$htmlTableRow += "<td>$($server.DotNet)</td>"
 				}
+				$certStatus = "" | Select-Object Expiration,SignatureAlgorithm
 				if ($server.Certs.NotAfter -lt (Get-Date).AddDays(30)){
-					$htmlTableRow += "<td class=""fail"">Fail</td>"
+					$certStatus.Expiration = "Fail"
 					$siteFailItems += "<li>One or more servers certificates is expiring inside 30 days.</li>"
 				}elseif ($server.Certs.NotAfter -lt (Get-Date).AddDays(60)){
-					$htmlTableRow += "<td class=""warn"">Warn</td>"
+					$certStatus.Expiration = "Warn"
 					$siteWarnItems += "<li>One or more servers certificates is expiring inside 60 days.</li>"
+				}
+				if ($server.Certs.SignatureAlgorithm -match "sha1RSA"){
+					$certStatus.SignatureAlgorithm = "Warn"
+					$siteWarnItems += "<li>One or more servers certificates signing algorithm is SHA1.</li>"
+				}
+				if ($certStatus -match "Fail"){
+					$htmlTableRow += "<td class=""fail"">Fail</td>"
+				}elseif ($certStatus -match "Warn"){
+					$htmlTableRow += "<td class=""warn"">Warn</td>"
 				}else{
 					$htmlTableRow += "<td>Pass</td>"
 				}
@@ -776,7 +790,7 @@ $topologyHtml = "<p>$cmsHtml
 if ($globalSummary."Address Mismatch" -gt 0){
 	$globalWarnItems += "<li>Users exist whose SIP address and primary STMP addresses do not match. `
 		This will cause Exchange integration issues for these users. `
-		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' target='_blank'>Address Mistmatch</a>.</li>"
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' target='_blank'>Address Mismatch</a>.</li>"
 }
 if ($globalSummary."AD Disabled" -gt 0){
 	$globalWarnItems += "<li>Users exist that are disabled in AD but are enabled for Skype4B. `
