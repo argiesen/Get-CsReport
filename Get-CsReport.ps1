@@ -35,7 +35,8 @@ public static extern bool CertSrvIsServerOnline(
         $Server = $matches[1]
         $CAName = $matches[2]
         $ServerStatus = $false
-        $hresult = [CryptoAPI.CertAdm]::CertSrvIsServerOnline($Server,[ref]$ServerStatus)
+        #$hresult = [CryptoAPI.CertAdm]::CertSrvIsServerOnline($Server,[ref]$ServerStatus)
+        [CryptoAPI.CertAdm]::CertSrvIsServerOnline($Server,[ref]$ServerStatus) | Out-Null
         if ($ServerStatus) {
             $CertAdmin = New-Object -ComObject CertificateAuthority.Admin
             $CertRequest = New-Object -ComObject CertificateAuthority.Request
@@ -123,7 +124,7 @@ try {
 		@{name='Global Catalog';expression={$_.IsGlobalCatalog}},`
 		@{name='Read Only';expression={$_.IsReadOnly}}
 }catch{
-	#continue
+	Write-Warning "Unable to run Get-ADDomainController"
 }
 
 ## Collect internal CAs
@@ -162,7 +163,7 @@ foreach ($ca in $caResults){
 #Stop AD collect time
 $StepStopWatch.Stop()
 if ($Timing){
-	Write-Host "AD collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+	Write-Output "AD collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
 }
 
 #Start CS collect time
@@ -183,7 +184,7 @@ $disabledAdUsers = Get-CsAdUser -ResultSize Unlimited | `
 	Select-Object Name,Enabled,SipAddress
 
 ## Collect admin users
-$adminUsers = Get-AdUser -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | foreach{Get-CsUser $_.SamAccountName -ErrorAction SilentlyContinue}
+$adminUsers = Get-AdUser -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | Foreach-Object {Get-CsUser $_.SamAccountName -ErrorAction SilentlyContinue}
 	
 ## Collect analog devices
 $analogDevices = Get-CsAnalogDevice | Where-Object Enabled -eq $true
@@ -219,13 +220,13 @@ $pools = Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServ
 #Stop CS collect time
 $StepStopWatch.Stop()
 if ($Timing){
-	Write-Host "CS collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+	Write-Output "CS collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
 }
 
 #Stop all collect time
 $CollectStopWatch.Stop()
 if ($Timing){
-	Write-Host "Collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+	Write-Output "Collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
 }
 
 ## Create global user summary table and populate
@@ -313,7 +314,7 @@ foreach ($site in $sites){
 				$server.Connectivity = Test-Connection -ComputerName $server.Server -Count 1 -ErrorAction SilentlyContinue
 				
 				$error.Clear()
-				Get-WmiObject Win32_ComputerSystem -ComputerName $server.Server -ErrorAction SilentlyContinue | Out-Null
+				Get-CimInstance Win32_ComputerSystem -ComputerName $server.Server -ErrorAction SilentlyContinue | Out-Null
 				if ($error.Exception.Message -match "access denied"){
 					Write-Verbose "$($server.Server) is not accessible."
 					$server.Permission = $false
@@ -323,14 +324,14 @@ foreach ($site in $sites){
 				}
 				
 				if ($server.Connectivity -and $server.Permission){
-					$server.Version = (Get-WmiObject Win32_Product -ComputerName $server.Server | Where-Object Name -match "(Lync Server|Skype for Business Server)" | `
+					$server.Version = (Get-CimInstance Win32_Product -ComputerName $server.Server | Where-Object Name -match "(Lync Server|Skype for Business Server)" | `
 					Where-Object Name -notmatch "(Debugging Tools|Resource Kit)" | Select-Object Name,Version | Sort-Object Version -Descending)[0].Version
 					if ($VersionXmlCs){
 						$server.Version = "$($server.Version)<br />($(($VersionXmlCs.catalog.UpdateVersion | Where-Object Id -eq $server.Version).UpdateName))"
 					}else{
 						$server.Version = "$($server.Version)"
 					}
-					$computer = Get-WmiObject Win32_ComputerSystem -ComputerName $server.Server -ErrorAction SilentlyContinue
+					$computer = Get-CimInstance Win32_ComputerSystem -ComputerName $server.Server -ErrorAction SilentlyContinue
 					if ($computer.Manufacturer -match "VMware"){
 						$server.Hardware = "VMware"
 					}elseif ($computer.Manufacturer -match "Microsoft"){
@@ -341,7 +342,7 @@ foreach ($site in $sites){
 					if ($server.Hardware -eq "VMware"){
 						$server.vmTools = Invoke-Command -ComputerName $server.Server -ScriptBlock {
 							Set-Location (Get-Item "HKLM:\Software\VMware, Inc.\VMware Tools").GetValue("InstallPath")
-							Invoke-Expression ".\VMwareToolboxCmd.exe upgrade status"
+							& .\VMwareToolboxCmd.exe upgrade status
 						}
 						if (!($server.vmTools)){
 							$server.vmTools = "Not Installed"
@@ -353,22 +354,24 @@ foreach ($site in $sites){
 					}else{
 						$server.vmTools = "N/A"
 					}
-					$processors = Get-WmiObject Win32_Processor -ComputerName $server.Server | Select-Object Name,MaxClockSpeed,CurrentClockSpeed,NumberOfCores,NumberOfLogicalProcessors
+					$processors = Get-CimInstance Win32_Processor -ComputerName $server.Server | Select-Object Name,MaxClockSpeed,CurrentClockSpeed,NumberOfCores,NumberOfLogicalProcessors
 					$server.Sockets = $processors.Count
 					if (!($server.Sockets)){
 						$server.Sockets = 1
 					}
 					$server.Cores = $processors[0].NumberOfCores * $server.Sockets
-					$server.Memory = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server | `
+					$server.Memory = (Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server | `
 						Select-Object @{l='TotalMemory';e={"{0:N2}" -f ($_.TotalVisibleMemorySize/1MB)}}).TotalMemory
-					$server.HDD = Get-WmiObject Win32_Volume -Filter 'DriveType = 3' -ComputerName $server.Server | `
+					$server.HDD = Get-CimInstance Win32_Volume -Filter 'DriveType = 3' -ComputerName $server.Server | `
 						Where-Object DriveLetter -ne $null | `
 						Select-Object DriveLetter,Label,@{l='CapacityGB';e={$_.Capacity/1GB}},@{l='FreeSpaceGB';e={$_.FreeSpace/1GB}},@{l='FreeSpacePercent';e={($_.FreeSpace/$_.Capacity)*100}}
-					$server.PowerPlan = (Get-WmiObject Win32_PowerPlan -ComputerName $server.Server -Namespace root\cimv2\power -Filter "IsActive='$true'").ElementName
-					$boot = Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server
+					$server.PowerPlan = (Get-CimInstance Win32_PowerPlan -ComputerName $server.Server -Namespace root\cimv2\power -Filter "IsActive='$true'").ElementName
+					<# $boot = Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server
 					$server.Uptime = (($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Days * 24) `
-						+ ($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours
-					$server.OS = (Get-WmiObject Win32_OperatingSystem -ComputerName $server.Server).Caption
+						+ ($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours #>
+					$boot = Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server | Select-Object LastBootUpTime,LocalDateTime
+					[int]$server.Uptime = (New-TimeSpan -Start $boot.LastBootUpTime -End $boot.LocalDateTime).TotalHours
+					$server.OS = (Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server).Caption
 					$server.Certs = Invoke-Command -ComputerName $server.Server -ScriptBlock {Get-CsCertificate}
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
 					$server.DotNet = $VersionHashNDP.Item($server.DotNet)
@@ -383,8 +386,8 @@ foreach ($site in $sites){
 				#Stop server collect time
 				$StepStopWatch.Stop()
 				if ($Timing){
-					Write-Host $server.server
-					Write-Host "Server collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+					Write-Output $server.server
+					Write-Output "Server collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
 				}
 			}
 			
@@ -566,8 +569,8 @@ foreach ($site in $sites){
 			#Stop server HTML time
 			$StepStopWatch.Stop()
 			if ($Timing){
-				Write-Host $server.server
-				Write-Host "Server HTML: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+				Write-Output $server.server
+				Write-Output "Server HTML: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
 			}
 		}
 		
@@ -744,9 +747,9 @@ if ($CAs){
 
 ## Generate global CS HTML
 ## Generate CMS HTML
-$cmsHtml = "<b>Active CMS:</b> $(($csSummary.CMS | where Active -eq $true).PoolFqdn)"
-if ($csSummary.CMS | where Active -eq $false){
-	$cmsHtml += "<br /><b>Backup CMS:</b> $(($csSummary.CMS | where Active -eq $false).PoolFqdn)"
+$cmsHtml = "<b>Active CMS:</b> $(($csSummary.CMS | Where-Object Active -eq $true).PoolFqdn)"
+if ($csSummary.CMS | Where-Object Active -eq $false){
+	$cmsHtml += "<br /><b>Backup CMS:</b> $(($csSummary.CMS | Where-Object Active -eq $false).PoolFqdn)"
 }
 
 ## Generate SIP domains HTML
@@ -856,13 +859,13 @@ $htmlReport | Out-File CsReport.html -Encoding UTF8
 #Stop HTML build time
 $StepStopWatch.Stop()
 if ($Timing){
-	Write-Host "HTML build: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+	Write-Output "HTML build: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
 }
 
 #Stop total time
 $StopWatch.Stop()
 if ($Timing){
-	Write-Host "Total: "$StopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+	Write-Output "Total: "$StopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
 }
 
 .\CsReport.html
