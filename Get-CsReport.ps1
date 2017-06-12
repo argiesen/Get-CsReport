@@ -1,3 +1,7 @@
+param (
+	[boolean]$Timing = $false
+)
+
 #https://sysadmins.lv/blog-en/test-whether-ca-server-is-online-and-which-interfaces-are-available.aspx
 function Test-CAOnline {
 	[CmdletBinding()]
@@ -57,8 +61,6 @@ public static extern bool CertSrvIsServerOnline(
 		return
 	}
 }
-
-$Timing = $true
 
 #https://msdn.microsoft.com/en-us/library/hh925568%28v=vs.110%29.aspx
 $VersionHashNDP = @{
