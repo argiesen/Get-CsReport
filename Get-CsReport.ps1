@@ -366,9 +366,6 @@ foreach ($site in $sites){
 						Where-Object DriveLetter -ne $null | `
 						Select-Object DriveLetter,Label,@{l='CapacityGB';e={$_.Capacity/1GB}},@{l='FreeSpaceGB';e={$_.FreeSpace/1GB}},@{l='FreeSpacePercent';e={($_.FreeSpace/$_.Capacity)*100}}
 					$server.PowerPlan = (Get-CimInstance Win32_PowerPlan -ComputerName $server.Server -Namespace root\cimv2\power -Filter "IsActive='$true'").ElementName
-					<# $boot = Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server
-					$server.Uptime = (($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Days * 24) `
-						+ ($boot.ConvertToDateTime($boot.LocalDateTime) - $boot.ConvertToDateTime($boot.LastBootUpTime)).Hours #>
 					$boot = Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server | Select-Object LastBootUpTime,LocalDateTime
 					[int]$server.Uptime = (New-TimeSpan -Start $boot.LastBootUpTime -End $boot.LocalDateTime).TotalHours
 					$server.OS = (Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server).Caption
@@ -540,29 +537,6 @@ foreach ($site in $sites){
 				$htmlTableRow += "<td>$($server.LastUpdate)</td>"
 			}
 			$htmlTableRow += "</tr>"
-			
-			## Build servers HTML table rows
-			<# $htmlTableRow = "<tr>"
-			$htmlTableRow += "<td><b>$(($server.Pool).Split(".")[0])</b></td>"
-			$htmlTableRow += "<td class=""$($style.Server)"">$(($server.Server).Split(".")[0])</td>"
-			$htmlTableRow += "<td>$($server.Role)</td>"
-			$htmlTableRow += "<td>$($server.Hardware)</td>"
-			$htmlTableRow += "<td class=""$($style.vmTools)"">$($server.vmTools)</td>"
-			$htmlTableRow += "<td class=""$($style.Sockets)"">$($server.Sockets)</td>"
-			$htmlTableRow += "<td class=""$($style.Cores)"">$($server.Cores)</td>"
-			$htmlTableRow += "<td class=""$($style.Memory)"">$($server.Memory)</td>"
-			$htmlTableRow += "<td class=""$($style.HDD)""><ul>"
-			foreach ($hdd in $server.HDD){
-				$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
-			}
-			$htmlTableRow += "</ul></td>"
-			$htmlTableRow += "<td class=""$($style.PowerPlan)"">$($server.PowerPlan)</td>"
-			$htmlTableRow += "<td class=""$($style.Uptime)"">$($server.Uptime)</td>"
-			$htmlTableRow += "<td class=""$($style.OS)"">$($server.OS -replace 'Microsoft Windows ','')</td>"
-			$htmlTableRow += "<td class=""$($style.DotNet)"">$($server.DotNet)</td>"
-			$htmlTableRow += "<td class=""$($style.DNS)"">$($server.DnsCheck)</td>"
-			$htmlTableRow += "<td class=""$($style.LastUpdate)"">$($server.LastUpdate)</td>"
-			$htmlTableRow += "</tr>" #>
 			
 			$siteServersHtmlTable += $htmlTableRow
 			
