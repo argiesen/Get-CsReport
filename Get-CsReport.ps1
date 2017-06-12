@@ -300,6 +300,7 @@ foreach ($site in $sites){
 				#Start server collect time
 				$StepStopWatch = [system.diagnostics.stopwatch]::startNew()
 				
+				#Determine CS role
 				if ($pool.Services -match "Registrar" -and $pool.Services -match "UserServer"){
 					$server.Role = "Front End"
 				}elseif ($pool.Services -match "Registrar"){
@@ -312,11 +313,13 @@ foreach ($site in $sites){
 					$server.Role = "Mediation"
 				}
 				
+				#Test connectivity for queries
 				$server.Pool = $pool.Name
 				$server.Connectivity = Test-Connection -ComputerName $server.Server -Count 1 -ErrorAction SilentlyContinue
 				
 				$error.Clear()
 				Get-CimInstance Win32_ComputerSystem -ComputerName $server.Server -ErrorAction SilentlyContinue | Out-Null
+				
 				if ($error.Exception.Message -match "access denied"){
 					Write-Verbose "$($server.Server) is not accessible."
 					$server.Permission = $false
@@ -326,6 +329,7 @@ foreach ($site in $sites){
 				}
 				
 				if ($server.Connectivity -and $server.Permission){
+					#Get CS product version
 					$server.Version = (Get-CimInstance Win32_Product -ComputerName $server.Server | Where-Object Name -match "(Lync Server|Skype for Business Server)" | `
 					Where-Object Name -notmatch "(Debugging Tools|Resource Kit)" | Select-Object Name,Version | Sort-Object Version -Descending)[0].Version
 					if ($VersionXmlCs){
@@ -333,6 +337,8 @@ foreach ($site in $sites){
 					}else{
 						$server.Version = "$($server.Version)"
 					}
+					
+					#Get hardware info
 					$computer = Get-CimInstance Win32_ComputerSystem -ComputerName $server.Server -ErrorAction SilentlyContinue
 					if ($computer.Manufacturer -match "VMware"){
 						$server.Hardware = "VMware"
@@ -341,6 +347,8 @@ foreach ($site in $sites){
 					}else{
 						$server.Hardware = "$($computer.Manufacturer) $($computer.Model)"
 					}
+					
+					#If VMware get VMware Tools info
 					if ($server.Hardware -eq "VMware"){
 						$server.vmTools = Invoke-Command -ComputerName $server.Server -ScriptBlock {
 							Set-Location (Get-Item "HKLM:\Software\VMware, Inc.\VMware Tools").GetValue("InstallPath")
@@ -356,33 +364,53 @@ foreach ($site in $sites){
 					}else{
 						$server.vmTools = "N/A"
 					}
+					
+					#Get CPU info
 					$processors = Get-CimInstance Win32_Processor -ComputerName $server.Server | Select-Object Name,MaxClockSpeed,CurrentClockSpeed,NumberOfCores,NumberOfLogicalProcessors
 					$server.Sockets = $processors.Count
 					if (!($server.Sockets)){
 						$server.Sockets = 1
 					}
 					$server.Cores = $processors[0].NumberOfCores * $server.Sockets
+					
+					#Get RAM info
 					$server.Memory = (Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server | `
 						Select-Object @{l='TotalMemory';e={"{0:N2}" -f ($_.TotalVisibleMemorySize/1MB)}}).TotalMemory
+					
+					#Get HDD info
 					$server.HDD = Get-CimInstance Win32_Volume -Filter 'DriveType = 3' -ComputerName $server.Server | `
 						Where-Object DriveLetter -ne $null | `
 						Select-Object DriveLetter,Label,@{l='CapacityGB';e={$_.Capacity/1GB}},@{l='FreeSpaceGB';e={$_.FreeSpace/1GB}},@{l='FreeSpacePercent';e={($_.FreeSpace/$_.Capacity)*100}}
+					
+					#Get PowerPlan
 					$server.PowerPlan = (Get-CimInstance Win32_PowerPlan -ComputerName $server.Server -Namespace root\cimv2\power -Filter "IsActive='$true'").ElementName
+					
+					#Get uptime
 					$boot = Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server | Select-Object LastBootUpTime,LocalDateTime
 					[int]$server.Uptime = (New-TimeSpan -Start $boot.LastBootUpTime -End $boot.LocalDateTime).TotalHours
+					
+					#Get OS info
 					$server.OS = (Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server).Caption
+					
+					#Get certificate info
 					$server.Certs = Invoke-Command -ComputerName $server.Server -ScriptBlock {
 						Get-CsCertificate | Foreach-Object {Get-ChildItem Cert:\LocalMachine\My | `
 							Where-Object Thumbprint -eq $_.Thumbprint} | `
 							Select-Object -Unique Subject,Issuer,NotAfter,@{l='SignatureAlgorithm';e={$_.SignatureAlgorithm.FriendlyName}}
 					}
+					
+					#Get .NET Framework
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
 					$server.DotNet = $VersionHashNDP.Item($server.DotNet)
+					
+					#Get DNS check
 					if (Resolve-DnsName $server.Server -DnsOnly -Type A -QuickTimeout){
 						$server.DnsCheck = "Pass"
 					}else{
 						$server.DnsCheck = "Fail"
 					}
+					
+					#Get last update install
 					$server.LastUpdate = ((Get-HotFix -ComputerName $server.Server | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue)[0]).InstalledOn
 				}
 				
@@ -592,6 +620,7 @@ foreach ($site in $sites){
 			</table>
 			</p>"
 		
+		#Create site message lists
 		if ($siteFailItems){
 			$siteHtmlFail = "<p>Failed Items</p>
 				<ul>
@@ -809,6 +838,7 @@ if ($csMgmtReplication){
 		See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#cms-replica-not-up-to-date' target='_blank'>CMS replica not up-to-date</a>.</li>"
 }
 
+## Generate message lists
 if ($globalFailItems){
 	$globalHtmlFail = "<p>Failed Items</p>
 		<ul>
@@ -834,8 +864,6 @@ $globalCsHtmlBody += "<h3>Skype for Business Server</h3>
 	$globalHtmlFail
 	$globalHtmlWarn
 	$globalHtmlInfo"
-
-## Sites
 
 
 ## Close Report
