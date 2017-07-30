@@ -198,7 +198,7 @@ $analogDevices = Get-CsAnalogDevice | Where-Object Enabled -eq $true
 $commonAreaPhones = Get-CsCommonAreaPhone | Where-Object Enabled -eq $true
 
 ## Collect RGS workflows
-$rgsWorkflows = Get-CsRgsWorkflow | Where-Object Enabled -eq $true
+$rgsWorkflows = Get-CsRgsWorkflow | Where-Object Active -eq $true
 
 ## Collect CS pools
 $csPools = Get-CsPool | Where-Object Services -match "Registrar"
@@ -814,12 +814,11 @@ foreach ($dialinUrl in $($csSummary.DialinUrl)){
 
 if ($csMgmtReplication){
 	$cmsReplicaHtml = "<p><b>Failed CMS Replicas:</b>
-		$($csMgmtReplication | ConvertTo-Html -As Table -Fragment)</p>
-		<br />"
+		$($csMgmtReplication | ConvertTo-Html -As Table -Fragment)</p>"
 }
 
 ## Generate CS topology info HTML
-$topologyHtml = "<p>$cmsHtml
+$csTopologyHtml = "<p>$cmsHtml
 	<br /><b>SIP Domains:</b>
 		<ul>
 		$sipDomainHtml
@@ -836,8 +835,9 @@ $topologyHtml = "<p>$cmsHtml
 	$cmsReplicaHtml"
 
 
-## Global Users Summary
-
+## Global Summary
+$csSummaryHtml = "<p><b>Summary:</b>
+	$($globalSummary | ConvertTo-Html -As Table -Fragment)</p>"
 
 ## Generate messages
 if ($globalSummary."Address Mismatch" -gt 0){
@@ -881,8 +881,8 @@ if ($globalInfoItems){
 }
 
 $globalCsHtmlBody += "<h3>Skype for Business Server</h3>
-	$topologyHtml
-	<p>$($globalSummary | ConvertTo-Html -As Table -Fragment)</p>
+	$csTopologyHtml
+	$csSummaryHtml
 	$globalHtmlFail
 	$globalHtmlWarn
 	$globalHtmlInfo"
