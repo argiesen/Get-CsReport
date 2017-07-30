@@ -129,6 +129,9 @@ try {
 	Write-Warning "Unable to run Get-ADDomainController"
 }
 
+## Check CS and RTC groups for inheritance disabled
+$adGroupAdmin = Get-ADGroup -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | where Name -match "^CS|^RTC"
+
 ## Collect internal CAs
 $adRoot = [ADSI]"LDAP://RootDSE"
 $adDN = $adRoot.Get("rootDomainNamingContext")
@@ -277,6 +280,7 @@ foreach ($site in $sites){
 				@{label='Site';expression={$site.Identity}},`
 				Pool,`
 				@{label='Server';expression={$_}},`
+				AdminCount,`
 				Role,`
 				Version,`
 				Hardware,`
@@ -312,6 +316,9 @@ foreach ($site in $sites){
 				}elseif ($pool.Services -match "MediationServer"){
 					$server.Role = "Mediation"
 				}
+				
+				#Check for adminCount gt 1
+				$server.adminCount = (Get-ADComputer $(($server.Server).Split(".")[0]) -Properties adminCount -ErrorAction SilentlyContinue | select adminCount).adminCount
 				
 				#Test connectivity for queries
 				$server.Pool = $pool.Name
@@ -435,6 +442,10 @@ foreach ($site in $sites){
 			## Perform tests and build servers HTML table rows
 			$htmlTableRow = "<tr>"
 			$htmlTableRow += "<td><b>$(($server.Pool).Split(".")[0])</b></td>"
+			if ($server.adminCount -eq 1){
+				$siteFailItems += "<li>One or more servers were detected with adminCount greater than 0.`
+				See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
+			}
 			if ($server.Connectivity -and $server.Permission){
 				$htmlTableRow += "<td>$(($server.Server).Split(".")[0])</td>"
 				$htmlTableRow += "<td>$($server.Role)</td>"
@@ -505,7 +516,7 @@ foreach ($site in $sites){
 					$siteFailItems += "<li>One or more servers is running Server 2008 R2 which is End-of-Life. See `
 						<a href='https://technet.microsoft.com/en-us/library/dn951388.aspx?f=255&mspperror=-2147217396#Anchor_1' `
 						target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>"
-				}elseif ($server.OS -notmatch "Server (2012|2012 R2)"){
+				}elseif ($server.OS -notmatch "Server (2012|2012 R2|2016)"){
 					$htmlTableRow += "<td class=""fail"">$($server.OS -replace 'Microsoft Windows ','')</td>"
 					$siteFailItems += "<li>One or more servers is not running a supported OS. See `
 						<a href='https://technet.microsoft.com/en-us/library/dn951388.aspx?f=255&mspperror=-2147217396#Anchor_1' `
@@ -719,7 +730,18 @@ $adHtmlBody = "<h2>Environment Overview</h2>
 	</ul>
 	</p>"
 	
-## Convert Domain Controlers to HTML and combine with AD body
+## Convert adminCount groups to HTML and combine with AD body
+if ($adGroupAdmin){
+	$adHtmlBody += "<p>Failed Items</p>
+		<ul>"
+	foreach ($adGroup in $adGroupAdmin){
+		$adHtmlBody += "<li>$($adGroup.Name) has adminCount greater than 0. `
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
+	}
+	$adHtmlBody += "</ul>"
+}
+	
+## Convert Domain Controllers to HTML and combine with AD body
 if ($adDomainControllers){
 	$adHtmlBody += "<h3>Domain Controllers</h3>
 		<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>"
