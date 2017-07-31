@@ -95,8 +95,8 @@ $CollectStopWatch = [system.diagnostics.stopwatch]::startNew()
 #Start AD collect time
 $StepStopWatch = [system.diagnostics.stopwatch]::startNew()
 
-## Collect global info
-## Collect AD forest properties
+#Collect global info
+#Collect AD forest properties
 $adForest = Get-ADForest | Select-Object `
 	Name,`
 	RootDomain,`
@@ -104,7 +104,7 @@ $adForest = Get-ADForest | Select-Object `
 	Sites,`
 	UPNSuffixes
 
-## Collect AD domain properties
+#Collect AD domain properties
 $adDomain = Get-ADDomain | Select-Object `
 	Name,`
 	Forest,`
@@ -114,7 +114,7 @@ $adDomain = Get-ADDomain | Select-Object `
 	@{name='ChildDomains';expression={$_.ChildDomains -join ','}},`
 	DomainMode
 
-## Collect Domain Controllers
+#Collect Domain Controllers
 try {
 	$adDomainControllers = Get-ADDomainController -Filter * | Select-Object `
 		Site,`
@@ -129,10 +129,10 @@ try {
 	Write-Warning "Unable to run Get-ADDomainController"
 }
 
-## Check CS and RTC groups for inheritance disabled
+#Check CS and RTC groups for inheritance disabled
 $adGroupAdmin = Get-ADGroup -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | where Name -match "^CS|^RTC"
 
-## Collect internal CAs
+#Collect internal CAs
 $adRoot = [ADSI]"LDAP://RootDSE"
 $adDN = $adRoot.Get("rootDomainNamingContext")
 $configRoot = [ADSI]"LDAP://CN=Configuration,$adDN"
@@ -142,6 +142,7 @@ $query.SearchScope = "subtree"
 $caResults = $query.findall()
 $CAs = @()
 
+#Process collected CAs for hosting server, common name, online status and access to WebServer template
 foreach ($ca in $caResults){
 	$output = $CA.GetDirectoryEntry()
 	
@@ -174,43 +175,43 @@ if ($Timing){
 #Start CS collect time
 $StepStopWatch = [system.diagnostics.stopwatch]::startNew()
 
-## Collect sites
+#Collect sites
 $csSites = Get-CsSite
 
-## Collect users for global usage
+#Collect users for global usage
 $users = Get-CsUser -ResultSize Unlimited -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
 
-## Collect users with address mismatch
+#Collect users with address mismatch
 $addressMismatchUsers = Get-CsAdUser | Where-Object {($_.WindowsEmailAddress -and $_.SipAddress) -and ($_.WindowsEmailAddress -ne ($_.SipAddress -replace "sip:",""))}
 
-## Collect users who are disabled in AD but enabled in Skype
+#Collect users who are disabled in AD but enabled in Skype
 $disabledAdUsers = Get-CsAdUser -ResultSize Unlimited | `
 	Where-Object {$_.UserAccountControl -match "AccountDisabled" -and $_.Enabled -eq $true} | `
 	Select-Object Name,Enabled,SipAddress
 
-## Collect admin users
+#Collect admin users
 $adminUsers = Get-AdUser -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | Foreach-Object {Get-CsUser $_.SamAccountName -ErrorAction SilentlyContinue}
 	
-## Collect analog devices
+#Collect analog devices
 $analogDevices = Get-CsAnalogDevice | Where-Object Enabled -eq $true
 	
-## Collect common area phones
+#Collect common area phones
 $commonAreaPhones = Get-CsCommonAreaPhone | Where-Object Enabled -eq $true
 
-## Collect RGS workflows
+#Collect RGS workflows
 $rgsWorkflows = Get-CsRgsWorkflow | Where-Object Active -eq $true
 
-## Collect CS pools
+#Collect CS pools
 $csPools = Get-CsPool | Where-Object Services -match "Registrar"
 
-## Collect CS gateways
+#Collect CS gateways
 $csGateways = Get-CsService -PstnGateway
 
-## Collect Management Replication
+#Collect Management Replication
 $csMgmtReplication = (Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director|Edge|VideoInteropServer").Computers | `
 	ForEach-Object {Get-CsManagementStoreReplicationStatus -ReplicaFqdn $_} | Where-Object UpToDate -eq $false
 
-## Collect global CS info
+#Collect global CS info
 $csSummary = "" | Select-Object CMS,SipDomain,MeetUrl,DialinUrl,AdminUrl
 $csSummary.CMS = Get-CsService -CentralManagement | Select-Object SiteId,PoolFqdn,Version,Active
 $csSummary.SipDomain = Get-CsSipDomain
@@ -218,7 +219,7 @@ $csSummary.MeetUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandPropert
 $csSummary.DialinUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandProperty SimpleUrl | Where-Object {$_.Component -eq "dialin"}
 $csSummary.AdminUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandProperty SimpleUrl | Where-Object {$_.Component -eq "cscp"}
 
-## Collect sites info
+#Collect sites info
 $sites = Get-CsSite | Select-Object Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Gateways
 $pools = Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director"
 
@@ -234,7 +235,7 @@ if ($Timing){
 	Write-Output "Collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
 }
 
-## Create global user summary table and populate
+#Create global user summary table and populate
 $globalSummary = "" | Select-Object Sites,Users,"Address Mismatch","AD Disabled","Admin Users","Voice Users","RCC Users","Analog","Common Area",RGS,Pools,Gateways
 $globalSummary.Sites = $csSites.Count
 $globalSummary.Users = ($users | Where-Object {$_.Enabled -eq $true}).Count
@@ -249,7 +250,7 @@ $globalSummary.RGS = $rgsWorkflows.Count
 $globalSummary.Pools = $csPools.Count
 $globalSummary.Gateways = $csGateways.Count
 
-## Process each site in topology for site summary, then server summary
+#Process each site in topology for site summary, then server summary
 foreach ($site in $sites){
 	$sitePools = $pools | `
 		Where-Object {$_.Site -eq $site.Identity} | `
@@ -264,9 +265,9 @@ foreach ($site in $sites){
 	$siteWarnItems = @()
 	$siteInfoItems = @()
 	
-	## If pools exist in site, process pools for servers
+	#If pools exist in site, process pools for servers
 	if ($sitePools){
-		## Process pools in site
+		#Process pools in site
 		foreach ($pool in $sitePools){
 			$pool.Users = ($users | Where-Object {$_.Enabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
 			$pool."Voice Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
@@ -299,7 +300,7 @@ foreach ($site in $sites){
 				Connectivity,`
 				Permission
 			
-			## Process servers in pool
+			#Process servers in pool
 			foreach ($server in $servers){
 				#Start server collect time
 				$StepStopWatch = [system.diagnostics.stopwatch]::startNew()
@@ -429,7 +430,7 @@ foreach ($site in $sites){
 				}
 			}
 			
-			## Aggregate servers from each pool in site
+			#Aggregate servers from each pool in site
 			$siteServers += $servers
 		}
 						
@@ -439,7 +440,7 @@ foreach ($site in $sites){
 			#Start server html time
 			$StepStopWatch = [system.diagnostics.stopwatch]::startNew()
 			
-			## Perform tests and build servers HTML table rows
+			#Perform tests and build servers HTML table rows
 			$htmlTableRow = "<tr>"
 			$htmlTableRow += "<td><b>$(($server.Pool).Split(".")[0])</b></td>"
 			if ($server.adminCount -eq 1){
@@ -603,7 +604,7 @@ foreach ($site in $sites){
 			}
 		}
 		
-		## Convert site header, site summary, and site server summary to HTML and combine with body
+		#Convert site header, site summary, and site server summary to HTML and combine with body
 		$siteHtmlBody += "<h3>$($Site.Name)</h3>
 			<p>$($site | Select-Object * -ExcludeProperty Identity,Name | ConvertTo-Html -As Table -Fragment)</p>
 			<p>
@@ -667,7 +668,7 @@ foreach ($site in $sites){
 #Start HTML build time
 $StepStopWatch = [system.diagnostics.stopwatch]::startNew()
 
-## Header
+#Header
 $HtmlHead = "<html>
 	<style>
 	BODY{font-family: Calibri; font-size: 11pt; margin-top: 10px; margin-bottom: 60px;}
@@ -700,18 +701,18 @@ $HtmlHead = "<html>
 	<h1>Skype for Business Report</h1>
 	<p>Generated: $(Get-Date)</p>"
 
-## Active Directory
+#Active Directory
 foreach ($suffix in $($adForest.UPNSuffixes)){
 	$adSuffixes += "<li>$suffix</li>"
 }
 
 
-## Build AD site HTML list
+#Build AD site HTML list
 foreach ($site in $($adForest.Sites)){
 	$adSites += "<li>$site</li>"
 }
 
-## Convert global summary tables to HTML and combine with AD body
+#Convert global summary tables to HTML and combine with AD body
 $adHtmlBody = "<h2>Environment Overview</h2>
 	<p></p>
 	<h3>Active Directory</h3>
@@ -730,7 +731,7 @@ $adHtmlBody = "<h2>Environment Overview</h2>
 	</ul>
 	</p>"
 	
-## Convert adminCount groups to HTML and combine with AD body
+#Convert adminCount groups to HTML and combine with AD body
 if ($adGroupAdmin){
 	$adHtmlBody += "<p>Failed Items</p>
 		<ul>"
@@ -741,15 +742,15 @@ if ($adGroupAdmin){
 	$adHtmlBody += "</ul>"
 }
 	
-## Convert Domain Controllers to HTML and combine with AD body
+#Convert Domain Controllers to HTML and combine with AD body
 if ($adDomainControllers){
 	$adHtmlBody += "<h3>Domain Controllers</h3>
 		<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>"
 }
 
-## Certificate Authorities
+#Certificate Authorities
 if ($CAs){
-	## Build CA HTML table rows
+	#Build CA HTML table rows
 	foreach ($ca in $CAs){
 		$htmlTableRow = "<tr>"
 		$htmlTableRow += "<td>$($ca.CommonName)</td>"
@@ -774,6 +775,7 @@ if ($CAs){
 			</ul>"
 	}
 	
+	#Build CA HTML
 	$caHtmlBody = "<h3>Certificate Authorities</h3>
 		<table>
 		<tr>
@@ -786,14 +788,14 @@ if ($CAs){
 		$caHtmlWarn"
 }
 
-## Generate global CS HTML
-## Generate CMS HTML
+#Generate global CS HTML
+#Generate CMS HTML
 $cmsHtml = "<b>Active CMS:</b> $(($csSummary.CMS | Where-Object Active -eq $true).PoolFqdn)"
 if ($csSummary.CMS | Where-Object Active -eq $false){
 	$cmsHtml += "<br /><b>Backup CMS:</b> $(($csSummary.CMS | Where-Object Active -eq $false).PoolFqdn)"
 }
 
-## Generate SIP domains HTML
+#Generate SIP domains HTML
 foreach ($sipDomain in $($csSummary.SipDomain)){
 	if ($sipDomain.IsDefault){
 		$sipDomainHtml += "<li>$($sipDomain.Name) (Default)</li>"
@@ -802,12 +804,12 @@ foreach ($sipDomain in $($csSummary.SipDomain)){
 	}
 }
 
-## Generate meet URLs HTML
+#Generate meet URLs HTML
 foreach ($meetUrl in $($csSummary.MeetUrl)){
 	$meetUrlHtml += "<li>$($meetUrl.ActiveUrl) ($($meetUrl.Domain))</li>"
 }
 
-## Generate dialin URLs HTML
+#Generate dialin URLs HTML
 foreach ($dialinUrl in $($csSummary.DialinUrl)){
 	$dialinUrlHtml += "<li>$($dialinUrl.ActiveUrl) ($($dialinUrl.Domain))</li>"
 }
@@ -817,7 +819,7 @@ if ($csMgmtReplication){
 		$($csMgmtReplication | ConvertTo-Html -As Table -Fragment)</p>"
 }
 
-## Generate CS topology info HTML
+#Generate CS topology info HTML
 $csTopologyHtml = "<p>$cmsHtml
 	<br /><b>SIP Domains:</b>
 		<ul>
@@ -835,11 +837,11 @@ $csTopologyHtml = "<p>$cmsHtml
 	$cmsReplicaHtml"
 
 
-## Global Summary
+#Global Summary
 $csSummaryHtml = "<p><b>Summary:</b>
 	$($globalSummary | ConvertTo-Html -As Table -Fragment)</p>"
 
-## Generate messages
+#Generate messages
 if ($globalSummary."Address Mismatch" -gt 0){
 	$globalWarnItems += "<li>Users exist whose SIP address and primary STMP addresses do not match. `
 		This will cause Exchange integration issues for these users. `
@@ -860,7 +862,7 @@ if ($csMgmtReplication){
 		See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#cms-replica-not-up-to-date' target='_blank'>CMS replica not up-to-date</a>.</li>"
 }
 
-## Generate message lists
+#Generate message lists
 if ($globalFailItems){
 	$globalHtmlFail = "<p>Failed Items</p>
 		<ul>
@@ -880,6 +882,7 @@ if ($globalInfoItems){
 		</ul>"
 }
 
+#Combine csTopologyHtml and csSummaryHtml with message lists
 $globalCsHtmlBody += "<h3>Skype for Business Server</h3>
 	$csTopologyHtml
 	$csSummaryHtml
@@ -888,10 +891,11 @@ $globalCsHtmlBody += "<h3>Skype for Business Server</h3>
 	$globalHtmlInfo"
 
 
-## Close Report
+#Close Report
 $HtmlTail = "</body>
 	</html>"
 
+#Combine HTML peices
 $htmlReport = $HtmlHead + $adHtmlBody + $caHtmlBody + $globalCsHtmlBody + $siteHtmlBody + $HtmlTail
 
 $htmlReport | Out-File CsReport.html -Encoding UTF8
