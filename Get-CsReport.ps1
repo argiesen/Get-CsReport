@@ -90,6 +90,13 @@ try {
 	$VersionXmlCs = $false
 }
 
+
+##############################################################################################################
+##                                                                                                          ##
+##                        Collect global info for AD, CA and Skype4B summaries                              ##
+##                                                                                                          ##
+##############################################################################################################
+
 #Start all collect time
 $CollectStopWatch = [system.diagnostics.stopwatch]::startNew()
 #Start AD collect time
@@ -250,7 +257,13 @@ $globalSummary.RGS = $rgsWorkflows.Count
 $globalSummary.Pools = $csPools.Count
 $globalSummary.Gateways = $csGateways.Count
 
-#Process each site in topology for site summary, then server summary
+
+##############################################################################################################
+##                                                                                                          ##
+##                 Process each site in topology for site summary, then server summary                      ##
+##                                                                                                          ##
+##############################################################################################################
+
 foreach ($site in $sites){
 	$sitePools = $pools | `
 		Where-Object {$_.Site -eq $site.Identity} | `
@@ -664,6 +677,13 @@ foreach ($site in $sites){
 			$siteHtmlInfo"
 	}
 }
+
+
+##############################################################################################################
+##                                                                                                          ##
+##                                       Building Final HTML                                                ##
+##                                                                                                          ##
+##############################################################################################################
 
 #Start HTML build time
 $StepStopWatch = [system.diagnostics.stopwatch]::startNew()
