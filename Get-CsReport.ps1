@@ -137,7 +137,7 @@ try {
 }
 
 #Check CS and RTC groups for inheritance disabled
-$adGroupAdmin = Get-ADGroup -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | where Name -match "^CS|^RTC"
+$adGroupAdmin = Get-ADGroup -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | Where-Object Name -match "^CS|^RTC"
 
 #Collect internal CAs
 $adRoot = [ADSI]"LDAP://RootDSE"
@@ -332,7 +332,7 @@ foreach ($site in $sites){
 				}
 				
 				#Check for adminCount gt 1
-				$server.adminCount = (Get-ADComputer $(($server.Server).Split(".")[0]) -Properties adminCount -ErrorAction SilentlyContinue | select adminCount).adminCount
+				$server.adminCount = (Get-ADComputer $(($server.Server).Split(".")[0]) -Properties adminCount -ErrorAction SilentlyContinue | Select-Object adminCount).adminCount
 				
 				#Test connectivity for queries
 				$server.Pool = $pool.Name
@@ -716,10 +716,11 @@ $HtmlHead = "<html>
 	tr:nth-child(odd){background: #b8d1f3;}
 	ul.hdd{list-style: inside; padding-left: 0px; list-style-type:square;}
 	ul{list-style: inside; padding-left: 0px; list-style-type:square; margin: -10px 0;}
+	p2{font-size: 9pt;}
 	</style>
-	<body>
-	<h1>Skype for Business Report</h1>
-	<p>Generated: $(Get-Date)</p>"
+	<body>"
+
+#Title generated at end of script for runtime information
 
 #Active Directory
 foreach ($suffix in $($adForest.UPNSuffixes)){
@@ -903,7 +904,8 @@ if ($globalInfoItems){
 }
 
 #Combine csTopologyHtml and csSummaryHtml with message lists
-$globalCsHtmlBody += "<h3>Skype for Business Server</h3>
+$globalCsHtmlBody += "<br />
+	<h2>Skype for Business Server</h2>
 	$csTopologyHtml
 	$csSummaryHtml
 	$globalHtmlFail
@@ -914,12 +916,7 @@ $globalCsHtmlBody += "<h3>Skype for Business Server</h3>
 #Close Report
 $HtmlTail = "</body>
 	</html>"
-
-#Combine HTML peices
-$htmlReport = $HtmlHead + $adHtmlBody + $caHtmlBody + $globalCsHtmlBody + $siteHtmlBody + $HtmlTail
-
-$htmlReport | Out-File CsReport.html -Encoding UTF8
-
+	
 #Stop HTML build time
 $StepStopWatch.Stop()
 if ($Timing){
@@ -931,5 +928,17 @@ $StopWatch.Stop()
 if ($Timing){
 	Write-Output "Total: "$StopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
 }
+
+#Title
+$HtmlTitle = "<h1>Skype for Business Report</h1>
+	<p2>Date: $(Get-Date)<br />
+	Author: $(whoami)<br />
+	Machine: $(hostname)<br />
+	Elapsed: $($StopWatch.Elapsed.ToString('mm\:ss'))</p2>"
+
+#Combine HTML sections
+$htmlReport = $HtmlHead + $HtmlTitle + $adHtmlBody + $caHtmlBody + $globalCsHtmlBody + $siteHtmlBody + $HtmlTail
+
+$htmlReport | Out-File CsReport.html -Encoding UTF8
 
 .\CsReport.html
