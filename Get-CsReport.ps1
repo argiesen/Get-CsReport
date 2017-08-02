@@ -176,7 +176,7 @@ foreach ($ca in $caResults){
 #Stop AD collect time
 $StepStopWatch.Stop()
 if ($Timing){
-	Write-Output "AD collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+	Write-Output "AD collect: $($StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
 }
 
 #Start CS collect time
@@ -233,13 +233,13 @@ $pools = Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServ
 #Stop CS collect time
 $StepStopWatch.Stop()
 if ($Timing){
-	Write-Output "CS collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+	Write-Output "CS collect: $($StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
 }
 
 #Stop all collect time
 $CollectStopWatch.Stop()
 if ($Timing){
-	Write-Output "Collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+	Write-Output "Total collect: $($StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
 }
 
 #Create global user summary table and populate
@@ -439,7 +439,7 @@ foreach ($site in $sites){
 				$StepStopWatch.Stop()
 				if ($Timing){
 					Write-Output $server.server
-					Write-Output "Server collect: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+					Write-Output "Server collect: $($StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
 				}
 			}
 			
@@ -613,7 +613,7 @@ foreach ($site in $sites){
 			$StepStopWatch.Stop()
 			if ($Timing){
 				Write-Output $server.server
-				Write-Output "Server HTML: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+				Write-Output "Server HTML: $($StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
 			}
 		}
 		
@@ -920,13 +920,13 @@ $HtmlTail = "</body>
 #Stop HTML build time
 $StepStopWatch.Stop()
 if ($Timing){
-	Write-Output "HTML build: "$StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+	Write-Output "HTML build: $($StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
 }
 
 #Stop total time
 $StopWatch.Stop()
 if ($Timing){
-	Write-Output "Total: "$StopWatch.Elapsed.ToString('dd\.hh\:mm\:ss')
+	Write-Output "Total: $($StopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
 }
 
 #Title
