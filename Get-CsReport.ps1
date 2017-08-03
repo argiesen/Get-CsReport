@@ -501,17 +501,17 @@ foreach ($site in $sites){
 				}
 				$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
 				if ($server.HDD.FreeSpaceGB -lt 32){
-					$htmlTableRow += "<td class=""warn""><ul style='margin: 0;'>"
+					$htmlTableRow += "<td class=""warn""><ul.hdd style='margin: 0;'>"
 					foreach ($hdd in $server.HDD){
 						$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
 					}
 				}else{
-					$htmlTableRow += "<td><ul style='margin: 0;'>"
+					$htmlTableRow += "<td><ul.hdd style='margin: 0;'>"
 					foreach ($hdd in $server.HDD){
 						$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
 					}
 				}
-				$htmlTableRow += "</ul></td>"
+				$htmlTableRow += "</ul.hdd></td>"
 				if ($server.PowerPlan -eq "High Performance"){
 					$htmlTableRow += "<td>$($server.PowerPlan)</td>"
 				}else{
@@ -592,11 +592,11 @@ foreach ($site in $sites){
 				$htmlTableRow += "<td>$($server.Sockets)</td>"
 				$htmlTableRow += "<td>$($server.Cores)</td>"
 				$htmlTableRow += "<td>$($server.Memory)</td>"
-				$htmlTableRow += "<td><ul style='margin: 0;'>"
+				$htmlTableRow += "<td><ul.hdd style='margin: 0;'>"
 				foreach ($hdd in $server.HDD){
 					$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
 				}
-				$htmlTableRow += "</ul></td>"
+				$htmlTableRow += "</ul.hdd></td>"
 				$htmlTableRow += "<td>$($server.PowerPlan)</td>"
 				$htmlTableRow += "<td>$($server.Uptime)</td>"
 				$htmlTableRow += "<td>$($server.OS -replace 'Microsoft Windows ','')</td>"
@@ -715,7 +715,7 @@ $HtmlHead = "<html>
 	tr:nth-child(even){background: #dae5f4;}
 	tr:nth-child(odd){background: #b8d1f3;}
 	ul.hdd{list-style: inside; padding-left: 0px; list-style-type:square;}
-	ul{list-style: inside; padding-left: 0px; list-style-type:square; margin: -10px 0;}
+	ul{list-style: inside; padding-left: 10px; list-style-type:square; margin: -10px 0;}
 	p2{font-size: 9pt;}
 	</style>
 	<body>"
@@ -783,7 +783,7 @@ if ($CAs){
 			}
 		}else{
 			$htmlTableRow += "<td class=""fail"">$($ca.Online)</td>"
-			$caWarnItems += "<li>$($ca.Server): CA server is unavailable.</li>"
+			$caWarnItems += "<li>$($ca.Server): CA server is unavailable (this is expected if this CA is designed as an offline root).</li>"
 		}
 		
 		$caHtmlTable += $htmlTableRow
