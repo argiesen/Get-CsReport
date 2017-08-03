@@ -916,7 +916,7 @@ $globalCsHtmlBody += "<br />
 #Close Report
 $HtmlTail = "</body>
 	</html>"
-	
+
 #Stop HTML build time
 $StepStopWatch.Stop()
 if ($Timing){
