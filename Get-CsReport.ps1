@@ -197,7 +197,8 @@ $disabledAdUsers = Get-CsAdUser -ResultSize Unlimited | `
 	Select-Object Name,Enabled,SipAddress
 
 #Collect admin users
-$adminUsers = Get-AdUser -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | Foreach-Object {Get-CsUser $_.SamAccountName -ErrorAction SilentlyContinue}
+$adminUsers = Get-AdUser -Filter {adminCount -gt 0} -Properties adminCount -ResultSetSize $null | `
+	Foreach-Object {Get-CsUser $_.SamAccountName -ErrorAction SilentlyContinue}
 	
 #Collect analog devices
 $analogDevices = Get-CsAnalogDevice | Where-Object Enabled -eq $true
@@ -239,7 +240,7 @@ if ($Timing){
 #Stop all collect time
 $CollectStopWatch.Stop()
 if ($Timing){
-	Write-Output "Total collect: $($StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
+	Write-Output "Total collect: $($CollectStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
 }
 
 #Create global user summary table and populate
@@ -308,6 +309,7 @@ foreach ($site in $sites){
 				OS,`
 				DotNet,`
 				Certs,`
+				CACerts,`
 				DnsCheck,`
 				LastUpdate,`
 				Connectivity,`
@@ -420,6 +422,21 @@ foreach ($site in $sites){
 							Select-Object -Unique Subject,Issuer,NotAfter,@{l='SignatureAlgorithm';e={$_.SignatureAlgorithm.FriendlyName}}
 					}
 					
+					#Get CA certificate info
+					$server.CACerts = Invoke-Command -ComputerName $server.Server -ScriptBlock {
+						$CACerts = "" | Select-Object MisplacedCertInRootStore,DuplicateRoot,RootCertCount,DuplicateFriendlyName,MisplacedRootInIntStore
+						
+						#https://blogs.technet.microsoft.com/uclobby/2015/06/19/checks-to-do-in-the-lyncskype4b-certificate-store/
+						$CACerts.MisplacedCertInRootStore = Get-ChildItem cert:\LocalMachine\root -Recurse | Where-Object {$_.Issuer -ne $_.Subject}
+						$CACerts.DuplicateRoot = Get-ChildItem cert:\LocalMachine\root | Group-Object -Property Thumbprint | Where-Object {$_.Count -gt 1}
+						$CACerts.RootCertCount = Get-ChildItem cert:\LocalMachine\root | Measure-Object
+						$CACerts.DuplicateFriendlyName = Get-ChildItem cert:\LocalMachine\my | Group-Object -Property FriendlyName | Where-Object {$_.Count -gt 1}
+						$CACerts.MisplacedRootInIntStore = Get-ChildItem Cert:\localmachine\CA | Where-Object {$_.Issuer -eq $_.Subject}
+						return $CACerts
+					}
+					
+					$server.CACerts
+					
 					#Get .NET Framework
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
 					$server.DotNet = $VersionHashNDP.Item($server.DotNet)
@@ -446,7 +463,8 @@ foreach ($site in $sites){
 			#Aggregate servers from each pool in site
 			$siteServers += $servers
 		}
-						
+		
+		#Null variable for next loop
 		$siteServersHtmlTable = $null
 		
 		foreach ($server in $siteServers){
@@ -460,11 +478,22 @@ foreach ($site in $sites){
 				$siteFailItems += "<li>One or more servers were detected with adminCount greater than 0.`
 				See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
 			}
+			
+			#If server is accessible build row with values
 			if ($server.Connectivity -and $server.Permission){
+				#Column server name
 				$htmlTableRow += "<td>$(($server.Server).Split(".")[0])</td>"
+				
+				#Column server role
 				$htmlTableRow += "<td>$($server.Role)</td>"
+				
+				#Column CS version
 				$htmlTableRow += "<td>$($server.Version)</td>"
+				
+				#Column server hardware
 				$htmlTableRow += "<td>$($server.Hardware)</td>"
+				
+				#Column VMware Tools status
 				if ($server.vmTools -match "(Up-to-date|N/A)"){
 					$htmlTableRow += "<td>$($server.vmTools)</td>"
 				}elseif($server.vmTools -match "Not Installed"){
@@ -474,6 +503,8 @@ foreach ($site in $sites){
 					$htmlTableRow += "<td class=""warn"">$($server.vmTools)</td>"
 					$siteWarnItems += "<li>One or more servers were detected as VMware VMs with an update available for VMware Tools.</li>"
 				}
+				
+				#Column server sockets and socket warning
 				if (($server.Sockets -eq $server.Cores) -and ($server.Sockets -gt 1)){
 					$htmlTableRow += "<td class=""warn"">$($server.Sockets)</td>"
 					$siteWarnItems += "<li>One or more servers CPU sockets is equal to cores. See `
@@ -482,6 +513,8 @@ foreach ($site in $sites){
 				}else{
 					$htmlTableRow += "<td>$($server.Sockets)</td>"
 				}
+				
+				#Column server cores
 				if ($server.Cores -lt 4){
 					$htmlTableRow += "<td class=""warn"">$($server.Cores)</td>"
 					$siteWarnItems += "<li>One or more servers total cores is less than 4. See `
@@ -490,6 +523,8 @@ foreach ($site in $sites){
 				}else{
 					$htmlTableRow += "<td>$($server.Cores)</td>"
 				}
+				
+				#Column server memory and inadequate server memory warning
 				if ($server.Memory -lt 16){
 					$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
 					$htmlTableRow += "<td class=""warn"">$($server.Memory)</td>"
@@ -499,7 +534,8 @@ foreach ($site in $sites){
 					$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
 					$htmlTableRow += "<td>$($server.Memory)</td>"
 				}
-				$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
+				
+				#Column server drives and drive space warning
 				if ($server.HDD.FreeSpaceGB -lt 32){
 					$htmlTableRow += "<td class=""warn""><ul.hdd style='margin: 0;'>"
 					foreach ($hdd in $server.HDD){
@@ -512,6 +548,8 @@ foreach ($site in $sites){
 					}
 				}
 				$htmlTableRow += "</ul.hdd></td>"
+				
+				#Column server power plan
 				if ($server.PowerPlan -eq "High Performance"){
 					$htmlTableRow += "<td>$($server.PowerPlan)</td>"
 				}else{
@@ -520,11 +558,15 @@ foreach ($site in $sites){
 						<a href='https://support.microsoft.com/en-us/help/2207548/slow-performance-on-windows-server-when-using-the-balanced-power-plan' `
 						target='_blank'>KB2207548</a>.</li>"
 				}
+				
+				#Column server uptime
 				if ($server.Uptime -gt 2160){
 					$htmlTableRow += "<td class=""warn"">$($server.Uptime)</td>"
 				}else{
 					$htmlTableRow += "<td>$($server.Uptime)</td>"
 				}
+				
+				#Column server OS and unsupported OS warning
 				if ($server.OS -match "Server 2008 R2"){
 					$htmlTableRow += "<td class=""fail"">$($server.OS -replace 'Microsoft Windows ','')</td>"
 					$siteFailItems += "<li>One or more servers is running Server 2008 R2 which is End-of-Life. See `
@@ -538,6 +580,8 @@ foreach ($site in $sites){
 				}else{
 					$htmlTableRow += "<td>$($server.OS -replace 'Microsoft Windows ','')</td>"
 				}
+				
+				#Column server .NET and .NET version warning
 				if ($server.DotNet -notmatch "(4.6.2|4.5.2)"){
 					$htmlTableRow += "<td class=""warn"">$($server.DotNet)</td>"
 					$siteWarnItems += "<li>One or more servers .NET Framework is out-of-date. Version 4.5.2 or 4.6.2 is recommended. See `
@@ -546,6 +590,8 @@ foreach ($site in $sites){
 				}else{
 					$htmlTableRow += "<td>$($server.DotNet)</td>"
 				}
+				
+				#Column server certificate status and certificate warnings
 				$certStatus = "" | Select-Object Expiration,SignatureAlgorithm
 				if ($server.Certs.NotAfter -lt (Get-Date).AddDays(30)){
 					$certStatus.Expiration = "Fail"
@@ -565,11 +611,15 @@ foreach ($site in $sites){
 				}else{
 					$htmlTableRow += "<td>Pass</td>"
 				}
+				
+				#Column DNS check and DNS check warning
 				if ($server.DnsCheck -ne "Pass"){
 					$htmlTableRow += "<td class=""fail"">$($server.DnsCheck)</td>"
 				}else{
 					$htmlTableRow += "<td>$($server.DnsCheck)</td>"
 				}
+				
+				#Column last update install date
 				if ($server.LastUpdate -lt (Get-Date).addDays(-90)){
 					$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
 					$htmlTableRow += "<td class=""warn"">$($server.LastUpdate)</td>"
@@ -578,6 +628,7 @@ foreach ($site in $sites){
 					$htmlTableRow += "<td>$($server.LastUpdate)</td>"
 				}
 			}else{
+				#If server is unaccessible build row with blank values
 				$htmlTableRow += "<td class=""fail"">$(($server.Server).Split(".")[0])</td>"
 				if (!($server.Connectivity)){
 					$siteFailItems += "<li>One or more servers are not accessible or offline.</li>"
@@ -585,25 +636,21 @@ foreach ($site in $sites){
 					$siteFailItems += "<li>One or more servers could not be queried due to permissions. `
 						Verify the user generating this report has local administrator rights on each server.</li>"
 				}
-				$htmlTableRow += "<td>$($server.Role)</td>"
-				$htmlTableRow += "<td>$($server.Version)</td>"
-				$htmlTableRow += "<td>$($server.Hardware)</td>"
-				$htmlTableRow += "<td>$($server.vmTools)</td>"
-				$htmlTableRow += "<td>$($server.Sockets)</td>"
-				$htmlTableRow += "<td>$($server.Cores)</td>"
-				$htmlTableRow += "<td>$($server.Memory)</td>"
-				$htmlTableRow += "<td><ul.hdd style='margin: 0;'>"
-				foreach ($hdd in $server.HDD){
-					$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
-				}
-				$htmlTableRow += "</ul.hdd></td>"
-				$htmlTableRow += "<td>$($server.PowerPlan)</td>"
-				$htmlTableRow += "<td>$($server.Uptime)</td>"
-				$htmlTableRow += "<td>$($server.OS -replace 'Microsoft Windows ','')</td>"
-				$htmlTableRow += "<td>$($server.DotNet)</td>"
-				$htmlTableRow += "<td>$($server.Certs)</td>"
-				$htmlTableRow += "<td>$($server.DnsCheck)</td>"
-				$htmlTableRow += "<td>$($server.LastUpdate)</td>"
+				$htmlTableRow += "<td></td>" #$server.Role
+				$htmlTableRow += "<td></td>" #$server.Version
+				$htmlTableRow += "<td></td>" #$server.Hardware
+				$htmlTableRow += "<td></td>" #$server.vmTools
+				$htmlTableRow += "<td></td>" #$server.Sockets
+				$htmlTableRow += "<td></td>" #$server.Cores
+				$htmlTableRow += "<td></td>" #$server.Memory
+				$htmlTableRow += "<td></td>" #$server.HDD
+				$htmlTableRow += "<td></td>" #$server.PowerPlan
+				$htmlTableRow += "<td></td>" #$server.Uptime
+				$htmlTableRow += "<td></td>" #$server.OS
+				$htmlTableRow += "<td></td>" #$server.DotNet
+				$htmlTableRow += "<td></td>" #$server.Certs
+				$htmlTableRow += "<td></td>" #$server.DnsCheck
+				$htmlTableRow += "<td></td>" #$server.LastUpdate
 			}
 			$htmlTableRow += "</tr>"
 			
@@ -671,6 +718,7 @@ foreach ($site in $sites){
 			$siteHtmlInfo = $null
 		}
 		
+		#Combine site HTML body and lists
 		$siteHtmlBody = "$siteHtmlBody
 			$siteHtmlFail
 			$siteHtmlWarn
@@ -720,13 +768,10 @@ $HtmlHead = "<html>
 	</style>
 	<body>"
 
-#Title generated at end of script for runtime information
-
 #Active Directory
 foreach ($suffix in $($adForest.UPNSuffixes)){
 	$adSuffixes += "<li>$suffix</li>"
 }
-
 
 #Build AD site HTML list
 foreach ($site in $($adForest.Sites)){
@@ -857,7 +902,6 @@ $csTopologyHtml = "<p>$cmsHtml
 	<p><b>Admin URL:</b> $($csSummary.AdminUrl.ActiveUrl)</p>
 	$cmsReplicaHtml"
 
-
 #Global Summary
 $csSummaryHtml = "<p><b>Summary:</b>
 	$($globalSummary | ConvertTo-Html -As Table -Fragment)</p>"
@@ -912,7 +956,6 @@ $globalCsHtmlBody += "<br />
 	$globalHtmlWarn
 	$globalHtmlInfo"
 
-
 #Close Report
 $HtmlTail = "</body>
 	</html>"
@@ -929,7 +972,7 @@ if ($Timing){
 	Write-Output "Total: $($StopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
 }
 
-#Title
+#Title generated at end of script for runtime information
 $HtmlTitle = "<h1>Skype for Business Report</h1>
 	<p2>Date: $(Get-Date)<br />
 	Author: $(whoami)<br />
