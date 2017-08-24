@@ -613,24 +613,23 @@ foreach ($site in $sites){
 				#Root and intermediate certificate warnings
 				if ($server.CACerts.MisplacedCertInRootStore){
 					$siteFailItems += "<li>One or more servers have non-root certificates in the Trusted Root Certifiate Store. This will cause the Front-End service to fail to start. `
-					See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#non-root-certificates-in-trusted-root-certificate-store' `
-					target='_blank'>Non-root certificates in Trusted Root Certificate Store</a> for more information.</li>"
+						See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#non-root-certificates-in-trusted-root-certificate-store' `
+						target='_blank'>Non-root certificates in Trusted Root Certificate Store</a> for more information.</li>"
 				}
 				if ($server.CACerts.DuplicateRoot){
 					$siteWarnItems += "<li>One or more servers have duplicate certificates in the Trusted Root Certificate Store. `
-					See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#duplicates-in-trusted-root-certificate-store' `
-					target='_blank'>Duplicates in Trusted Root Certificate Store</a> for more information.</li>"
+						See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#duplicates-in-trusted-root-certificate-store' `
+						target='_blank'>Duplicates in Trusted Root Certificate Store</a> for more information.</li>"
 				}
 				if ($server.CACerts.RootCertCount.Count -gt 100){
 					$siteWarnItems += "<li>One or more servers has more than 100 certificates in the Trusted Root Certificate Store. This can cause TLS failures. `
-					See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#more-than-100-certificates-in-trusted-root-certificate-store' `
-					target='_blank'>More than 100 certificates in Trusted Root Certificate Store</a> for more information.</li>"
+						See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#more-than-100-certificates-in-trusted-root-certificate-store' `
+						target='_blank'>More than 100 certificates in Trusted Root Certificate Store</a> for more information.</li>"
 				}
-				$server.CACerts.RootCertCount.Count
 				if ($server.CACerts.DuplicateFriendlyName){
 					$siteWarnItems += "<li>One or more servers have certificates with duplicate friendly names. `
-					See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#duplicate-friendly-name' `
-					target='_blank'>Duplicate Friendly Name</a> for more information.</li>"
+						See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#duplicate-friendly-name' `
+						target='_blank'>Duplicate Friendly Name</a> for more information.</li>"
 				}
 				
 				#Column DNS check and DNS check warning
