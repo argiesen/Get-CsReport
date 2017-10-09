@@ -507,7 +507,7 @@ foreach ($site in $sites){
 				}
 				
 				#Column server sockets and socket warning
-				if (($server.Sockets -eq $server.Cores) -and ($server.Sockets -gt 1)){
+				if ($server.Sockets -eq $server.Cores -and $server.Sockets -gt 1){
 					$htmlTableRow += "<td class=""warn"">$($server.Sockets)</td>"
 					$siteWarnItems += "<li>One or more servers CPU sockets is equal to cores. See `
 						<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' `
@@ -517,7 +517,7 @@ foreach ($site in $sites){
 				}
 				
 				#Column server cores
-				if ($server.Cores -lt 4 -and $server.Role -notmatch "SBA/SBS"){
+				if ($server.Cores -lt 4 -and $server.Role -ne "SBA/SBS"){
 					$htmlTableRow += "<td class=""warn"">$($server.Cores)</td>"
 					$siteWarnItems += "<li>One or more servers total cores is less than 4. See `
 						<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' `
@@ -527,7 +527,7 @@ foreach ($site in $sites){
 				}
 				
 				#Column server memory and inadequate server memory warning
-				if ($server.Memory -lt 16 -and $server.Role -notmatch "SBA/SBS"){
+				if ($server.Memory -lt 16 -and $server.Role -ne "SBA/SBS"){
 					$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
 					$htmlTableRow += "<td class=""warn"">$($server.Memory)</td>"
 					$siteWarnItems += "<li>RAM is less than 16GB.</li>"
@@ -569,7 +569,7 @@ foreach ($site in $sites){
 				}
 				
 				#Column server OS and unsupported OS warning
-				if ($server.OS -match "Server 2008 R2" -and $server.Role -match "SBA/SBS" -and $server.Version -match "5.0"){
+				if ($server.OS -match "Server 2008 R2" -and $server.Role -eq "SBA/SBS" -and $server.Version -match "5.0"){
 					$htmlTableRow += "<td class=""warn"">$($server.OS -replace 'Microsoft Windows ','')</td>"
 					$siteWarnItems += "<li>One or more servers is running Server 2008 R2 which is End-of-Life. `
 						Because this is a Lync Server 2013 SBA this is just a warning. See `
