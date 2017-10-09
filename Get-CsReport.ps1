@@ -1,5 +1,6 @@
+[cmdletbinding()]
 param (
-	[boolean]$Timing = $false
+	[switch]$Timing
 )
 
 #https://sysadmins.lv/blog-en/test-whether-ca-server-is-online-and-which-interfaces-are-available.aspx
@@ -344,8 +345,11 @@ foreach ($site in $sites){
 				Get-CimInstance Win32_ComputerSystem -ComputerName $server.Server -ErrorAction SilentlyContinue | Out-Null
 				
 				if ($error.Exception.Message -match "access denied"){
-					Write-Verbose "$($server.Server) is not accessible."
+					Write-Verbose "$($server.Server) is not accessible due to permissions."
 					$server.Permission = $false
+				}elseif ($error.Exception.Message -match "WinRM cannot complete the operation"){
+					Write-Verbose "$($server.Server) is not accessible due to WinRM."
+					$server.Connectivity = $false
 				}else{
 					Write-Verbose "$($server.Server) is accessible."
 					$server.Permission = $true
