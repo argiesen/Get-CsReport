@@ -421,9 +421,14 @@ foreach ($site in $sites){
 					
 					#Get certificate info
 					$server.Certs = Invoke-Command -ComputerName $server.Server -ScriptBlock {
-						Get-CsCertificate | Foreach-Object {Get-ChildItem Cert:\LocalMachine\My | `
+						$error.Clear()
+						Get-CsCertificate -ErrorAction SilentlyContinue -WarningAction SilentlyContinue | Foreach-Object {Get-ChildItem Cert:\LocalMachine\My | `
 							Where-Object Thumbprint -eq $_.Thumbprint} | `
-							Select-Object -Unique Subject,Issuer,NotAfter,@{l='SignatureAlgorithm';e={$_.SignatureAlgorithm.FriendlyName}}
+							Select-Object -Unique Subject,Issuer,NotAfter,@{l='SignatureAlgorithm';e={$_.SignatureAlgorithm.FriendlyName}},NotFoundOrUntrusted
+							
+						if ($error.Exception.Message -match "Assigned certificate not found or untrusted"){
+							$server.Certs.NotFoundOrUntrusted = $true
+						}
 					}
 					
 					#Get CA certificate info
@@ -600,7 +605,7 @@ foreach ($site in $sites){
 				}
 				
 				#Column server certificate status and certificate warnings
-				$certStatus = "" | Select-Object Expiration,SignatureAlgorithm
+				$certStatus = "" | Select-Object Expiration,SignatureAlgorithm,NotFoundOrUntrusted
 				if ($server.Certs.NotAfter -lt (Get-Date).AddDays(30)){
 					$certStatus.Expiration = "Fail"
 					$siteFailItems += "<li>One or more servers certificates is expiring inside 30 days.</li>"
@@ -611,6 +616,10 @@ foreach ($site in $sites){
 				if ($server.Certs.SignatureAlgorithm -match "sha1RSA"){
 					$certStatus.SignatureAlgorithm = "Warn"
 					$siteWarnItems += "<li>One or more servers certificates signing algorithm is SHA1.</li>"
+				}
+				if ($server.Certs.NotFoundOrUntrusted){
+					$certStatus.NotFoundOrUntrusted = "Fail"
+					$siteWarnItems += "<li>One or more servers certificates is missing or untrusted.</li>"
 				}
 				if ($certStatus -match "Fail"){
 					$htmlTableRow += "<td class=""fail"">Fail</td>"
