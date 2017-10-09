@@ -311,6 +311,7 @@ foreach ($site in $sites){
 				DotNet,`
 				Certs,`
 				CACerts,`
+				QoS,`
 				DnsCheck,`
 				LastUpdate,`
 				Connectivity,`
@@ -335,7 +336,8 @@ foreach ($site in $sites){
 				}
 				
 				#Check for adminCount gt 1
-				$server.adminCount = (Get-ADComputer $(($server.Server).Split(".")[0]) -Properties adminCount -ErrorAction SilentlyContinue | Select-Object adminCount).adminCount
+				$server.adminCount = (Get-ADComputer $(($server.Server).Split(".")[0]) -Properties adminCount -ErrorAction SilentlyContinue | `
+				Select-Object adminCount).adminCount
 				
 				#Test connectivity for queries
 				$server.Pool = $pool.Name
@@ -443,6 +445,22 @@ foreach ($site in $sites){
 						$CACerts.MisplacedRootInIntStore = Get-ChildItem Cert:\localmachine\CA | Where-Object {$_.Issuer -eq $_.Subject}
 						return $CACerts
 					}
+					
+					#Get QoS Policies
+					<# $server.QoS = Invoke-Command -ComputerName $server.Server -ScriptBlock {
+						$QoSPolicies = "" | Select-Object Audio,Video,AppShare,Signaling
+						$currentQoSPolicies = Get-NetQosPolicy
+						
+						$csPool = Get-CsPool | Where-Object Computers -match ([System.Net.Dns]::GetHostByName((hostname)).HostName)
+						$isConfServer = (Get-CsService -ConferencingServer) -match $csPool.Identity
+						$isMedServer = (Get-CsService -MediationServer) -match $csPool.Identity
+						
+						if ($isConfServer){
+							
+						}elseif ($isMedServer){
+							
+						}
+					} #>
 					
 					#Get .NET Framework
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
