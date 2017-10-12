@@ -456,9 +456,29 @@ foreach ($site in $sites){
 						$isMedServer = (Get-CsService -MediationServer) -match $csPool.Identity
 						
 						if ($isConfServer){
+							#Windows 10 client
+							#$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
+								select @{l="Name";e={($_.PSPath -split "\\")[7]}},"Application Name",Protocol,"Local Port","Local IP","Local IP Prefix Length","Remote Port","Remote IP","Remote IP Prefix Length","DSCP Value"
+							#Server 2016
+							$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
+								select @{l="Name";e={($_.PSPath -split "\\")[7]}},AppName,Protocol,SrcPortLow,SrcPortHigh,DSCP
 							
+							if ((($groupPolicies | where SrcPortLow -match $isConfServer.AudioPortStart) | where SrcPortHigh -match ($isConfServer.AudioPortStart + $isConfServer.AudioPortCount)) | where DSCP -match 46){
+								
+							}
+							if ((($groupPolicies | where SrcPortLow -match $isConfServer.VideoPortStart) | where SrcPortHigh -match ($isConfServer.VideoPortStart + $isConfServer.VideoPortCount)) | where DSCP -match 34){
+								
+							}
+							<# if ((($groupPolicies | where SrcPortLow -match $isConfServer.AppSharingPortStart) | where SrcPortHigh -match ($isConfServer.AppSharingPortStart + $isConfServer.AppSharingPortCount)) | where DSCP -match 18){
+								
+							} #>
 						}elseif ($isMedServer){
+							$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
+								select @{l="Name";e={($_.PSPath -split "\\")[7]}},"Application Name",Protocol,"Local Port","Local IP","Local IP Prefix Length","Remote Port","Remote IP","Remote IP Prefix Length","DSCP Value"
 							
+							if ((($groupPolicies | where SrcPortLow -match $isMedServer.AudioPortStart) | where SrcPortHigh -match ($isMedServer.AudioPortStart + $isMedServer.AudioPortCount)) | where DSCP -match 46){
+								
+							}
 						}
 					} #>
 					
