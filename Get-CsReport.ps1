@@ -456,10 +456,10 @@ foreach ($site in $sites){
 						$isMedServer = (Get-CsService -MediationServer) -match $csPool.Identity
 						
 						if ($isConfServer){
-							#Windows 10 client
+							#Windows 10 via AD GPO
 							#$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
 								select @{l="Name";e={($_.PSPath -split "\\")[7]}},"Application Name",Protocol,"Local Port","Local IP","Local IP Prefix Length","Remote Port","Remote IP","Remote IP Prefix Length","DSCP Value"
-							#Server 2016
+							#Server 2016 via PS
 							$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
 								select @{l="Name";e={($_.PSPath -split "\\")[7]}},AppName,Protocol,SrcPortLow,SrcPortHigh,DSCP
 							
@@ -473,8 +473,12 @@ foreach ($site in $sites){
 								
 							} #>
 						}elseif ($isMedServer){
-							$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
+							#Windows 10 via AD GPO
+							#$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
 								select @{l="Name";e={($_.PSPath -split "\\")[7]}},"Application Name",Protocol,"Local Port","Local IP","Local IP Prefix Length","Remote Port","Remote IP","Remote IP Prefix Length","DSCP Value"
+							#Server 2016 via PS
+							$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
+								select @{l="Name";e={($_.PSPath -split "\\")[7]}},AppName,Protocol,SrcPortLow,SrcPortHigh,DSCP
 							
 							if ((($groupPolicies | where SrcPortLow -match $isMedServer.AudioPortStart) | where SrcPortHigh -match ($isMedServer.AudioPortStart + $isMedServer.AudioPortCount)) | where DSCP -match 46){
 								
