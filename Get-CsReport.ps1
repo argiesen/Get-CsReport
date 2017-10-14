@@ -403,8 +403,7 @@ foreach ($site in $sites){
 					$server.Cores = $processors[0].NumberOfCores * $server.Sockets
 					
 					#Get RAM info
-					$server.Memory = (Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server | `
-						Select-Object @{l='TotalMemory';e={"{0:N2}" -f ($_.TotalVisibleMemorySize/1MB)}}).TotalMemory
+					$server.Memory = (Get-CimInstance Win32_OperatingSystem -ComputerName $server.Server).TotalVisibleMemorySize/1MB
 					
 					#Get HDD info
 					$server.HDD = Get-CimInstance Win32_Volume -Filter 'DriveType = 3' -ComputerName $server.Server | `
@@ -424,12 +423,12 @@ foreach ($site in $sites){
 					#Get certificate info
 					$server.Certs = Invoke-Command -ComputerName $server.Server -ScriptBlock {
 						$error.Clear()
-						Get-CsCertificate -ErrorAction SilentlyContinue -WarningAction SilentlyContinue | Foreach-Object {Get-ChildItem Cert:\LocalMachine\My | `
+						$certsOutput = Get-CsCertificate -ErrorAction SilentlyContinue -WarningAction SilentlyContinue | Foreach-Object {Get-ChildItem Cert:\LocalMachine\My | `
 							Where-Object Thumbprint -eq $_.Thumbprint} | `
 							Select-Object -Unique Subject,Issuer,NotAfter,@{l='SignatureAlgorithm';e={$_.SignatureAlgorithm.FriendlyName}},NotFoundOrUntrusted
 							
 						if ($error.Exception.Message -match "Assigned certificate not found or untrusted"){
-							$server.Certs.NotFoundOrUntrusted = $true
+							$certsOutput.NotFoundOrUntrusted = $true
 						}
 					}
 					
@@ -447,44 +446,98 @@ foreach ($site in $sites){
 					}
 					
 					#Get QoS Policies
-					<# $server.QoS = Invoke-Command -ComputerName $server.Server -ScriptBlock {
+					$csPool = Get-CsPool | Where-Object Computers -match $server.Server
+					$isConfServer = (Get-CsService -ConferencingServer) -match $csPool.Identity
+					$isMedServer = (Get-CsService -MediationServer) -match $csPool.Identity
+					
+					$server.QoS = Invoke-Command -ComputerName $server.Server -ArgumentList $isConfServer,$isMedServer -ScriptBlock {
+						param (
+							$isConfServer = $args[0],
+							$isMedServer = $args[1]
+						)
+					
 						$QoSPolicies = "" | Select-Object Audio,Video,AppShare,Signaling
-						$currentQoSPolicies = Get-NetQosPolicy
 						
-						$csPool = Get-CsPool | Where-Object Computers -match ([System.Net.Dns]::GetHostByName((hostname)).HostName)
-						$isConfServer = (Get-CsService -ConferencingServer) -match $csPool.Identity
-						$isMedServer = (Get-CsService -MediationServer) -match $csPool.Identity
+						$qosGroupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.PSPath} | `
+							Select-Object @{l="Name";e={($_.PSPath -split "\\")[7]}},Version,Protocol,"Application Name","Local Port","Local IP","Local IP Prefix Length","Remote Port","Remote IP","Remote IP Prefix Length","DSCP Value", `
+							AppName,SrcPortLow,SrcPortHigh,DSCP
 						
-						if ($isConfServer){
-							#Windows 10 via AD GPO
-							#$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
-								select @{l="Name";e={($_.PSPath -split "\\")[7]}},"Application Name",Protocol,"Local Port","Local IP","Local IP Prefix Length","Remote Port","Remote IP","Remote IP Prefix Length","DSCP Value"
-							#Server 2016 via PS
-							$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
-								select @{l="Name";e={($_.PSPath -split "\\")[7]}},AppName,Protocol,SrcPortLow,SrcPortHigh,DSCP
-							
-							if ((($groupPolicies | where SrcPortLow -match $isConfServer.AudioPortStart) | where SrcPortHigh -match ($isConfServer.AudioPortStart + $isConfServer.AudioPortCount)) | where DSCP -match 46){
+						if ($qosGroupPolicies){
+							if ($isConfServer){
+								$audioPolicy = $qosGroupPolicies | Where-Object {$_.DSCP -match 46 -or $_."DSCP Value" -match 46}
+								$videoPolicy = $qosGroupPolicies | Where-Object {$_.DSCP -match 34 -or $_."DSCP Value" -match 34}
+								#$appSharePolicy = $qosGroupPolicies | Where-Object {$_.DSCP -match 18 -or $_."DSCP Value" -match 18}
 								
+								#Check for audio QoS policies
+								if ($audioPolicy | Where-Object Version -eq "1.0"){
+									if (($audioPolicy | Where-Object "Local Port" -match $isConfServer.AudioPortStart) | Where-Object "Local Port" -match ($isConfServer.AudioPortStart + $isConfServer.AudioPortCount)){
+										$QoSPolicies.Audio = $true
+									}else{
+										$QoSPolicies.Audio = $false
+									}
+								}elseif ($audioPolicy | Where-Object Version -eq "2.0"){
+									if (($audioPolicy | Where-Object SrcPortLow -match $isConfServer.AudioPortStart) | Where-Object SrcPortHigh -match ($isConfServer.AudioPortStart + $isConfServer.AudioPortCount)){
+										$QoSPolicies.Audio = $true
+									}else{
+										$QoSPolicies.Audio = $false
+									}
+								}
+								
+								#Check for video QoS policies
+								if ($videoPolicy | Where-Object Version -eq "1.0"){
+									if (($videoPolicy | Where-Object "Local Port" -match $isConfServer.VideoPortStart) | Where-Object "Local Port" -match ($isConfServer.VideoPortStart + $isConfServer.VideoPortCount)){
+										$QoSPolicies.Video = $true
+									}else{
+										$QoSPolicies.Video = $false
+									}
+								}elseif ($videoPolicy | Where-Object Version -eq "2.0"){
+									if (($videoPolicy | Where-Object SrcPortLow -match $isConfServer.VideoPortStart) | Where-Object SrcPortHigh -match ($isConfServer.VideoPortStart + $isConfServer.VideoPortCount)){
+										$QoSPolicies.Video = $true
+									}else{
+										$QoSPolicies.Video = $false
+									}
+								}
+								
+								#Check for appshare QoS policies
+							<# 	if ($appSharePolicy | Where-Object Version -eq "1.0"){
+									if (($videoPolicy | Where-Object "Local Port" -match $isConfServer.AppSharingPortStart) | Where-Object "Local Port" -match ($isConfServer.AppSharingPortStart + $isConfServer.AppSharingPortCount)){
+										$QoSPolicies.AppShare = $true
+									}else{
+										$QoSPolicies.AppShare = $false
+									}
+								}elseif ($appSharePolicy | Where-Object Version -eq "2.0"){
+									if (($appSharePolicy | Where-Object SrcPortLow -match $isConfServer.AppSharingPortStart) | Where-Object SrcPortHigh -match ($isConfServer.AppSharingPortStart + $isConfServer.AppSharingPortCount)){
+										$QoSPolicies.AppShare = $true
+									}else{
+										$QoSPolicies.AppShare = $false
+									}
+								} #>
+							}elseif ($isMedServer){
+								#Check for audio QoS policy for mediation
+								if ($audioPolicy | Where-Object Version -eq "1.0"){
+									if (($audioPolicy | Where-Object "Local Port" -match $isMedServer.AudioPortStart) | Where-Object "Local Port" -match ($isMedServer.AudioPortStart + $isMedServer.AudioPortCount)){
+										$QoSPolicies.Audio = $true
+									}else{
+										$QoSPolicies.Audio = $false
+									}
+								}elseif ($audioPolicy | Where-Object Version -eq "2.0"){
+									if (($audioPolicy | Where-Object SrcPortLow -match $isMedServer.AudioPortStart) | Where-Object SrcPortHigh -match ($isMedServer.AudioPortStart + $isMedServer.AudioPortCount)){
+										$QoSPolicies.Audio = $true
+									}else{
+										$QoSPolicies.Audio = $false
+									}
+								}
 							}
-							if ((($groupPolicies | where SrcPortLow -match $isConfServer.VideoPortStart) | where SrcPortHigh -match ($isConfServer.VideoPortStart + $isConfServer.VideoPortCount)) | where DSCP -match 34){
-								
-							}
-							<# if ((($groupPolicies | where SrcPortLow -match $isConfServer.AppSharingPortStart) | where SrcPortHigh -match ($isConfServer.AppSharingPortStart + $isConfServer.AppSharingPortCount)) | where DSCP -match 18){
-								
-							} #>
-						}elseif ($isMedServer){
-							#Windows 10 via AD GPO
-							#$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
-								select @{l="Name";e={($_.PSPath -split "\\")[7]}},"Application Name",Protocol,"Local Port","Local IP","Local IP Prefix Length","Remote Port","Remote IP","Remote IP Prefix Length","DSCP Value"
-							#Server 2016 via PS
-							$groupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.pspath} | `
-								select @{l="Name";e={($_.PSPath -split "\\")[7]}},AppName,Protocol,SrcPortLow,SrcPortHigh,DSCP
-							
-							if ((($groupPolicies | where SrcPortLow -match $isMedServer.AudioPortStart) | where SrcPortHigh -match ($isMedServer.AudioPortStart + $isMedServer.AudioPortCount)) | where DSCP -match 46){
-								
-							}
+						}else{
+							#No QoS Policies found
+							$QoSPolicies.Audio = $false
+							$QoSPolicies.Video = $false
+							$QoSPolicies.AppShare = $false
+							$QoSPolicies.Signaling = $false
 						}
-					} #>
+						
+						return $QoSPolicies
+					}
 					
 					#Get .NET Framework
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
@@ -574,7 +627,7 @@ foreach ($site in $sites){
 				}
 				
 				#Column server memory and inadequate server memory warning
-				if ($server.Memory -lt 16 -and $server.Role -ne "SBA/SBS"){
+				if ($server.Memory -lt 16.00 -and $server.Role -ne "SBA/SBS"){
 					$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
 					$htmlTableRow += "<td class=""warn"">$($server.Memory)</td>"
 					$siteWarnItems += "<li>RAM is less than 16GB.</li>"
@@ -693,6 +746,13 @@ foreach ($site in $sites){
 						target='_blank'>Duplicate Friendly Name</a> for more information.</li>"
 				}
 				
+				#Column QoS check
+				if ($server.QoS -match $false){
+					$htmlTableRow += "<td class=""fail"">Fail</td>"
+				}else{
+					$htmlTableRow += "<td>Pass</td>"
+				}
+				
 				#Column DNS check and DNS check warning
 				if ($server.DnsCheck -ne "Pass"){
 					$htmlTableRow += "<td class=""fail"">$($server.DnsCheck)</td>"
@@ -730,6 +790,7 @@ foreach ($site in $sites){
 				$htmlTableRow += "<td></td>" #$server.OS
 				$htmlTableRow += "<td></td>" #$server.DotNet
 				$htmlTableRow += "<td></td>" #$server.Certs
+				$htmlTableRow += "<td></td>" #$server.QoS
 				$htmlTableRow += "<td></td>" #$server.DnsCheck
 				$htmlTableRow += "<td></td>" #$server.LastUpdate
 			}
@@ -766,6 +827,7 @@ foreach ($site in $sites){
 			<th width=""120px"">OS</th>
 			<th width=""30px"">.NET</th>
 			<th width=""30px"">Certs</th>
+			<th width=""30px"">QoS</th>
 			<th width=""30px"">DNS</th>
 			<th width=""50px"">Last Update</th>
 			</tr>
