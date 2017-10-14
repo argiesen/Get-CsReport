@@ -422,14 +422,19 @@ foreach ($site in $sites){
 					
 					#Get certificate info
 					$server.Certs = Invoke-Command -ComputerName $server.Server -ScriptBlock {
-						$error.Clear()
-						$certsOutput = Get-CsCertificate -ErrorAction SilentlyContinue -WarningAction SilentlyContinue | Foreach-Object {Get-ChildItem Cert:\LocalMachine\My | `
-							Where-Object Thumbprint -eq $_.Thumbprint} | `
-							Select-Object -Unique Subject,Issuer,NotAfter,@{l='SignatureAlgorithm';e={$_.SignatureAlgorithm.FriendlyName}},NotFoundOrUntrusted
-							
-						if ($error.Exception.Message -match "Assigned certificate not found or untrusted"){
-							$certsOutput.NotFoundOrUntrusted = $true
-						}
+						$certsOutput = Get-CsCertificate -ErrorAction SilentlyContinue -WarningAction SilentlyContinue | `
+							Foreach-Object {
+								$error.Clear()
+								Get-ChildItem Cert:\LocalMachine\My | Where-Object Thumbprint -eq $_.Thumbprint
+								if ($error.Exception.Message -match "Assigned certificate not found or untrusted"){
+									$notFoundOrUntrusted = $true
+								}else{
+									$notFoundOrUntrusted = $false
+								}
+							} | `
+							Select-Object -Unique Subject,Issuer,NotAfter,@{l='SignatureAlgorithm';e={$_.SignatureAlgorithm.FriendlyName}},@{l='NotFoundOrUntrusted';e={$notFoundOrUntrusted}}
+						
+						return $certsOutput
 					}
 					
 					#Get CA certificate info
@@ -459,7 +464,8 @@ foreach ($site in $sites){
 						$QoSPolicies = "" | Select-Object Audio,Video,AppShare,Signaling
 						
 						$qosGroupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.PSPath} | `
-							Select-Object @{l="Name";e={($_.PSPath -split "\\")[7]}},Version,Protocol,"Application Name","Local Port","Local IP","Local IP Prefix Length","Remote Port","Remote IP","Remote IP Prefix Length","DSCP Value", `
+							Select-Object @{l="Name";e={($_.PSPath -split "\\")[7]}},Version,Protocol,"Application Name",`
+							"Local Port","Local IP","Local IP Prefix Length","Remote Port","Remote IP","Remote IP Prefix Length","DSCP Value", `
 							AppName,SrcPortLow,SrcPortHigh,DSCP
 						
 						if ($qosGroupPolicies){
@@ -712,7 +718,7 @@ foreach ($site in $sites){
 					$certStatus.SignatureAlgorithm = "Warn"
 					$siteWarnItems += "<li>One or more servers certificates signing algorithm is SHA1.</li>"
 				}
-				if ($server.Certs.NotFoundOrUntrusted){
+				if ($server.Certs.NotFoundOrUntrusted -eq $true){
 					$certStatus.NotFoundOrUntrusted = "Fail"
 					$siteWarnItems += "<li>One or more servers certificates is missing or untrusted.</li>"
 				}
@@ -749,6 +755,7 @@ foreach ($site in $sites){
 				#Column QoS check
 				if ($server.QoS -match $false){
 					$htmlTableRow += "<td class=""fail"">Fail</td>"
+					$siteFailItems += "<li>One or more servers is missing or has misconfigured QoS policies."
 				}else{
 					$htmlTableRow += "<td>Pass</td>"
 				}
@@ -756,6 +763,7 @@ foreach ($site in $sites){
 				#Column DNS check and DNS check warning
 				if ($server.DnsCheck -ne "Pass"){
 					$htmlTableRow += "<td class=""fail"">$($server.DnsCheck)</td>"
+					$siteFailItems += "<li>One or more servers is missing DNS A records."
 				}else{
 					$htmlTableRow += "<td>$($server.DnsCheck)</td>"
 				}
@@ -764,6 +772,7 @@ foreach ($site in $sites){
 				if ($server.LastUpdate -lt (Get-Date).addDays(-90)){
 					$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
 					$htmlTableRow += "<td class=""warn"">$($server.LastUpdate)</td>"
+					$siteWarnItems += "<li>One or more servers has not had Windows patches applied in the last 90 days."
 				}else{
 					$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
 					$htmlTableRow += "<td>$($server.LastUpdate)</td>"
