@@ -1136,4 +1136,4 @@ $htmlReport = $HtmlHead + $HtmlTitle + $adHtmlBody + $caHtmlBody + $globalCsHtml
 
 $htmlReport | Out-File "$($env:UserProfile)\Desktop\CsReport.html" -Encoding UTF8
 
-Invoke-Expression "$($env:UserProfile)\Desktop\CsReport.html"
+Invoke-Expression "$env:UserProfile\Desktop\CsReport.html"
