@@ -1,0 +1,336 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>CsReport</title>
+	
+	<style>
+		BODY{font-family: "Courier New"; font-size: 10pt; margin-top: 10px; margin-bottom: 60px;}
+		H1{font-size: 22px;}
+		H2{font-size: 19px; padding-top: 10px;}
+		H3{font-size: 16px; padding-top: 8px;}
+		TABLE{border: 1px solid black; border-collapse: collapse; font-size: 8pt; table-layout: fixed;}
+		TABLE.csservers{table-layout: fixed;}
+		TABLE.testresults{width: 850px;}
+		TABLE.summary{text-align: center; width: auto;}
+		TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
+		TH.summary{width: 80px;}
+		TH.test{width: 120px;}
+		TH.description{width: 150px;}
+		TH.outcome{width: 50px}
+		TH.comments{width: 120px;}
+		TH.details{width: 270px;}
+		TH.reference{width: 60px;}
+		TD{border: 1px solid black; padding: 5px; vertical-align: top; word-wrap:break-word;}
+		td.pass{background: #7FFF00;}
+		td.warn{background: #FFFF00;}
+		td.fail{background: #FF0000; color: #ffffff;}
+		td.info{background: #85D4FF;}
+		tr:nth-child(even){background: #f2f2f2;}
+		tr:nth-child(odd){background: #c1c1c1;}
+		ul.hdd{list-style: inside; padding-left: 0px; list-style-type:square;}
+		ul{list-style: inside; padding-left: 0px; list-style-type:square; margin: -10px 0;}
+		p2{font-size: 8pt;}
+
+		.tab-wrap {
+			-webkit-transition: 0.3s box-shadow ease;
+			transition: 0.3s box-shadow ease;
+			border-radius: 6px;
+			max-width: 100%;
+			display: -webkit-box;
+			display: -webkit-flex;
+			display: -ms-flexbox;
+			display: flex;
+			-webkit-flex-wrap: wrap;
+			-ms-flex-wrap: wrap;
+			flex-wrap: wrap;
+			position: relative;
+			list-style: none;
+			background-color: #fff;
+			margin: 40px 0;
+			#box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+		}
+
+		#.tab-wrap:hover { box-shadow: 0 12px 23px rgba(0, 0, 0, 0.23), 0 10px 10px rgba(0, 0, 0, 0.19); }
+
+		.tab { display: none; }
+		
+		.tab:checked:nth-of-type(1) ~ .tab-content:nth-of-type(1) {
+			opacity: 1;
+			-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+			transition: 0.5s opacity ease-in, 0.8s transform ease;
+			position: relative;
+			top: 0;
+			z-index: 100;
+			-webkit-transform: translateY(0px);
+			-ms-transform: translateY(0px);
+			transform: translateY(0px);
+			text-shadow: 0 0 0;
+		}
+
+		.tab:checked:nth-of-type(2) ~ .tab-content:nth-of-type(2) {
+			opacity: 1;
+			-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+			transition: 0.5s opacity ease-in, 0.8s transform ease;
+			position: relative;
+			top: 0;
+			z-index: 100;
+			-webkit-transform: translateY(0px);
+			-ms-transform: translateY(0px);
+			transform: translateY(0px);
+			text-shadow: 0 0 0;
+		}
+
+		.tab:checked:nth-of-type(3) ~ .tab-content:nth-of-type(3) {
+			opacity: 1;
+			-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+			transition: 0.5s opacity ease-in, 0.8s transform ease;
+			position: relative;
+			top: 0;
+			z-index: 100;
+			-webkit-transform: translateY(0px);
+			-ms-transform: translateY(0px);
+			transform: translateY(0px);
+			text-shadow: 0 0 0;
+		}
+
+		.tab:checked:nth-of-type(4) ~ .tab-content:nth-of-type(4) {
+			opacity: 1;
+			-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+			transition: 0.5s opacity ease-in, 0.8s transform ease;
+			position: relative;
+			top: 0;
+			z-index: 100;
+			-webkit-transform: translateY(0px);
+			-ms-transform: translateY(0px);
+			transform: translateY(0px);
+			text-shadow: 0 0 0;
+		}
+
+		.tab:checked:nth-of-type(5) ~ .tab-content:nth-of-type(5) {
+			opacity: 1;
+			-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+			transition: 0.5s opacity ease-in, 0.8s transform ease;
+			position: relative;
+			top: 0;
+			z-index: 100;
+			-webkit-transform: translateY(0px);
+			-ms-transform: translateY(0px);
+			transform: translateY(0px);
+			text-shadow: 0 0 0;
+		}
+
+		.tab:first-of-type:not(:last-of-type) + label {
+			border-top-right-radius: 0;
+			border-bottom-right-radius: 0;
+		}
+
+		.tab:not(:first-of-type):not(:last-of-type) + label { border-radius: 0; }
+
+		.tab:last-of-type:not(:first-of-type) + label {
+			border-top-left-radius: 0;
+			border-bottom-left-radius: 0;
+		}
+
+		.tab:checked + label {
+			background-color: #fff;
+			box-shadow: 0 -1px 0 #fff inset;
+			cursor: default;
+		}
+
+		.tab:checked + label:hover {
+			box-shadow: 0 -1px 0 #fff inset;
+			background-color: #fff;
+		}
+
+		.tab + label {
+			box-shadow: 0 -1px 0 #eee inset;
+			border-radius: 6px 6px 0 0;
+			cursor: pointer;
+			display: block;
+			text-decoration: none;
+			color: #333;
+			-webkit-box-flex: 3;
+			-webkit-flex-grow: 3;
+			-ms-flex-positive: 3;
+			flex-grow: 3;
+			text-align: center;
+			background-color: #f2f2f2;
+			-webkit-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			user-select: none;
+			text-align: center;
+			-webkit-transition: 0.3s background-color ease, 0.3s box-shadow ease;
+			transition: 0.3s background-color ease, 0.3s box-shadow ease;
+			height: 50px;
+			box-sizing: border-box;
+			padding: 15px;
+			font-weight: bold;
+		}
+
+		.tab + label:hover {
+			background-color: #f9f9f9;
+			box-shadow: 0 1px 0 #f4f4f4 inset;
+		}
+
+		.tab-content {
+			padding: 10px 25px;
+			background-color: transparent;
+			position: absolute;
+			width: 100%;
+			z-index: -1;
+			opacity: 0;
+			left: 0;
+			-webkit-transform: translateY(-3px);
+			-ms-transform: translateY(-3px);
+			transform: translateY(-3px);
+			border-radius: 6px;
+		}
+	</style>
+</head>
+
+<body>
+	
+	<!-- https://www.cssscript.com/pure-css-tabs-component-with-transitions-between-variable-heights/ -->
+	<div class="tab-wrap">
+		<input type="radio" id="tab1" name="tabGroup1" class="tab" checked>
+		<label for="tab1">Active Directory</label>
+
+		<input type="radio" id="tab2" name="tabGroup1" class="tab">
+		<label for="tab2">Skype for Business</label>
+
+		<input type="radio" id="tab3" name="tabGroup1" class="tab">
+		<label for="tab3">Sites</label>
+
+		<input type="radio" id="tab4" name="tabGroup1" class="tab">
+		<label for="tab4">Servers</label>
+
+		<input type="radio" id="tab5" name="tabGroup1" class="tab">
+		<label for="tab5">Voice</label>
+		
+		<input type="radio" id="tab6" name="tabGroup1" class="tab">
+		<label for="tab6">QoS</label>
+		
+		<input type="radio" id="tab7" name="tabGroup1" class="tab">
+		<label for="tab7">Best Practices</label>
+
+		<!-- Active Directory tab -->
+		<div class="tab-content">
+			<p><b>Forest Name:</b> contoso.com<br />
+			<b>Forest Mode:</b> Windows2012R2Forest<br />
+			<b>Domain Name:</b> contoso.com (CONTOSO)<br />
+			<b>Domain Mode:</b> Windows2012R2Domain<br />
+			<b>UPN Suffixes:</b>
+			<ul>
+			<li>contoso.org</li>
+			</ul>
+			</p>
+			<p><b>Sites:</b>
+			<ul>
+			<li>Site 1</li><li>Site 2</li>
+			</ul>
+			</p><h3>Domain Controllers</h3>
+			<p><table> <colgroup><col/><col/><col/><col/><col/><col/><col/><col/></colgroup> <tr><th>Site</th><th>HostName</th><th>IP Address</th><th>OS</th><th>OS Version</th><th>Roles</th><th>Global Catalog</th><th>Read Only</th></tr> <tr><td>Site 1</td><td>dc02.contoso.com</td><td>10.0.0.52</td><td>Server 2012 R2 Datacenter</td><td>6.3 (9600)</td><td></td><td>True</td><td>False</td></tr> <tr><td>Site 1</td><td>dc03.contoso.com</td><td>10.0.0.53</td><td>Server 2012 R2 Datacenter</td><td>6.3 (9600)</td><td></td><td>True</td><td>False</td></tr> <tr><td>Site 1</td><td>contracdc1.contoso.com</td><td>192.168.0.12</td><td>Server 2012 R2 Datacenter</td><td>6.3 (9600)</td><td></td><td>True</td><td>False</td></tr> <tr><td>Site 1</td><td>dc01.contoso.com</td><td>10.0.0.51</td><td>Server 2012 R2 Datacenter</td><td>6.3 (9600)</td><td>SchemaMaster, DomainNamingMaster, PDCEmulator, RIDMaster, InfrastructureMaster</td><td>True</td><td>False</td></tr> <tr><td>Site 1</td><td>contracdc2.contoso.com</td><td>192.168.0.10</td><td>Server 2012 R2 Datacenter</td><td>6.3 (9600)</td><td></td><td>True</td><td>False</td></tr> <tr><td>Site 2</td><td>azsrv-dc01.contoso.com</td><td>10.1.0.6</td><td>Server 2012 R2 Datacenter</td><td>6.3 (9600)</td><td></td><td>True</td><td>False</td></tr> <tr><td>Site 2</td><td>azsrv-dc02.contoso.com</td><td>10.1.0.22</td><td>Server 2012 R2 Datacenter</td><td>6.3 (9600)</td><td></td><td>True</td><td>False</td></tr> </table></p><h3>Certificate Authorities</h3>
+			<table>
+			<tr>
+			<th>Common Name</th>
+			<th>Server</th>
+			<th>Online</th>
+			</tr>
+			<tr><td>CONTOSO-TOOLS-CA
+			</td><td>tools.contoso.com
+			</td><td class="fail">False</td><tr><td>CONTOSO Issuing CA
+			</td><td>ca02.contoso.com
+			</td><td>True</td>
+			</table>
+			<p>Warning Items</p>
+			<ul>
+				<li>tools.contoso.com
+				: CA server is unavailable.</li><li>ca02.contoso.com
+				: Web server template is unavailable.</li>
+			</ul><br />
+		</div>
+
+
+		<!-- Skype for Business tab -->
+		<div class="tab-content">
+			<h2>Skype for Business Server</h2>
+			<p><b>Active CMS:</b> Lync13Pool.contoso.com
+			<br /><b>SIP Domains:</b>
+			<ul>
+				<li>contoso.org (Default)</li>
+			</ul></p>
+			<p><b>Meet URLs:</b>
+			<ul>
+				<li>https://meet.contoso.org (contoso.org)</li>
+			</ul></p>
+			<p><b>Dailin URLs:</b>
+			<ul>
+				<li>https://dialin.contoso.org (*)</li>
+			</ul></p>
+			<p><b>Admin URL:</b> https://admin.contoso.com</p>
+			<p><b>Failed CMS Replicas:</b>
+			<table> <colgroup><col/><col/><col/><col/><col/></colgroup> <tr><th>UpToDate</th><th>ReplicaFqdn</th><th>LastStatusReport</th><th>LastUpdateCreation</th><th>ProductVersion</th></tr> <tr><td>False</td><td>srvlync-sba82.contoso.com</td><td>7/17/2017 9:32:29 AM</td><td>8/2/2017 4:15:10 PM</td><td>6.0.9319.0</td></tr> </table></p>
+			<p><b>Summary:</b>
+			<table> <colgroup><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/></colgroup> <tr><th>Sites</th><th>Users</th><th>Address Mismatch</th><th>AD Disabled</th><th>Admin Users</th><th>Voice Users</th><th>RCC Users</th><th>Analog</th><th>Common Area</th><th>RGS</th><th>Pools</th><th>Gateways</th></tr> <tr><td>27</td><td>4873</td><td>93</td><td></td><td>45</td><td>1751</td><td>0</td><td>6</td><td>385</td><td>66</td><td>27</td><td>30</td></tr> </table></p>
+			<p>Failed Items</p>
+			<ul>
+				<li>One or more servers CMS replicas are not up to date. 
+				See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#cms-replica-not-up-to-date' target='_blank'>CMS replica not up-to-date</a>.</li>
+			</ul>
+			<p>Warning Items</p>
+			<ul>
+				<li>Users exist whose SIP address and primary STMP addresses do not match. 
+				This will cause Exchange integration issues for these users. 
+				See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' target='_blank'>Address Mismatch</a>.</li>
+			</ul>
+			<p>Info Items</p>
+			<ul>
+				<li>Users exist with adminCount greater than 0. 
+				Attempts to modify these users Skype4B configurations may fail with access denied. 
+				See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>
+			</ul>
+			
+	  </div>
+
+
+		<!-- Sites tab -->
+		<div class="tab-content">
+			<h3>Site 1</h3>
+			<p><table> <colgroup><col/><col/><col/><col/><col/></colgroup> <tr><th>Users</th><th>Voice Users</th><th>RCC Users</th><th>Pools</th><th>Gateways</th></tr> <tr><td>3486</td><td>365</td><td>0</td><td>1</td><td>3</td></tr> </table></p>
+			<p>
+			<table class="csservers">
+			<tr>
+			<th width="100px">Pool</th>
+			<th width="100px">Server</th>
+			<th width="60px">Role</th>
+			<th width="80px">Version</th>
+			<th width="100px">Hardware</th>
+			<th width="70px">VMware Tools</th>
+			<th width="40px">Sockets</th>
+			<th width="40px">Cores</th>
+			<th width="40px">Memory</th>
+			<th width="130px">HDD</th>
+			<th width="95px">Power Plan</th>
+			<th width="40px">Uptime</th>
+			<th width="120px">OS</th>
+			<th width="30px">.NET</th>
+			<th width="30px">Certs</th>
+			<th width="30px">DNS</th>
+			<th width="50px">Last Update</th>
+			</tr>
+			<tr><td><b>Lync13Pool</b></td><td>srvlync-wfe01</td><td>Front End</td><td>6.0.9319.277<br />(CU4 HF1 - 02/13/2017)</td><td>Microsoft</td><td>N/A</td><td>1</td><td>8</td><td>32.00GB</td><td class="warn"><ul style='margin: 0;'><li>C: 17.94GB/89.66GB</li></ul></td><td>High performance</td><td>604</td><td>Server 2012 R2 Datacenter</td><td class="warn">4.6.1</td><td class="warn">Warn</td><td>Pass</td><td>06/15/2017</td></tr><tr><td><b>Lync13Pool</b></td><td>srvlync-wfe02</td><td>Front End</td><td>6.0.9319.277<br />(CU4 HF1 - 02/13/2017)</td><td>Microsoft</td><td>N/A</td><td>1</td><td>8</td><td>32.00GB</td><td class="warn"><ul style='margin: 0;'><li>C: 17.94GB/89.66GB</li></ul></td><td>High performance</td><td>605</td><td>Server 2012 R2 Datacenter</td><td class="warn">4.6.1</td><td class="warn">Warn</td><td>Pass</td><td>06/15/2017</td></tr><tr><td><b>Lync13Pool</b></td><td>srvlync-wfe03</td><td>Front End</td><td>6.0.9319.277<br />(CU4 HF1 - 02/13/2017)</td><td>Microsoft</td><td>N/A</td><td>1</td><td>8</td><td>32.00GB</td><td class="warn"><ul style='margin: 0;'><li>C: 15.92GB/79.66GB</li></ul></td><td>High performance</td><td>605</td><td>Server 2012 R2 Datacenter</td><td class="warn">4.6.1</td><td class="warn">Warn</td><td>Pass</td><td>06/15/2017</td></tr><tr><td><b>srvlync-pcs01</b></td><td>srvlync-pcs01</td><td>pChat</td><td>6.0.9319.277<br />(CU4 HF1 - 02/13/2017)</td><td>Microsoft</td><td>N/A</td><td>1</td><td>4</td><td>16.00GB</td><td class="warn"><ul style='margin: 0;'><li>C: 27.83GB/79.66GB</li></ul></td><td>High performance</td><td>224</td><td>Server 2012 R2 Datacenter</td><td class="warn">4.6.1</td><td>Pass</td><td>Pass</td><td>06/15/2017</td></tr>
+			</table>
+			</p>
+			
+			<p>Warning Items</p>
+			<ul>
+			<li>One or more servers .NET Framework is out-of-date. Version 4.5.2 or 4.6.2 is recommended. See 
+					<a href='https://blogs.technet.microsoft.com/nexthop/2016/02/11/on-net-framework-4-6-2-and-skype-for-businesslync-server-compatibility/' 
+					target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a>.</li> <li>One or more servers certificates signing algorithm is SHA1.</li>
+			</ul>
+		</div>
+	</div>
+</body>
+</html>
