@@ -580,206 +580,206 @@ foreach ($site in $sites){
 			$StepStopWatch = [system.diagnostics.stopwatch]::startNew()
 			
 			#Perform tests and build servers HTML table rows
-			$htmlTableRow = "<tr>"
-			$htmlTableRow += "<td><b>$(($server.Pool).Split(".")[0])</b></td>"
+			$htmlTableRow = "<tr>`n"
+			$htmlTableRow += "<td><b>$(($server.Pool).Split(".")[0])</b></td>`n"
 			if ($server.adminCount -eq 1){
 				$siteFailItems += "<li>One or more servers were detected with adminCount greater than 0.`
-				See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
+				See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>`n"
 			}
 			
 			#If server is accessible build row with values
 			if ($server.Connectivity -and $server.Permission){
 				#Column server name
-				$htmlTableRow += "<td>$(($server.Server).Split(".")[0])</td>"
+				$htmlTableRow += "<td>$(($server.Server).Split(".")[0])</td>`n"
 				
 				#Column server role
-				$htmlTableRow += "<td>$($server.Role)</td>"
+				$htmlTableRow += "<td>$($server.Role)</td>`n"
 				
 				#Column CS version
-				$htmlTableRow += "<td>$($server.Version)</td>"
+				$htmlTableRow += "<td>$($server.Version)</td>`n"
 				
 				#Column server hardware
-				$htmlTableRow += "<td>$($server.Hardware)</td>"
+				$htmlTableRow += "<td>$($server.Hardware)</td>`n"
 				
 				#Column VMware Tools status
 				if ($server.vmTools -match "(Up-to-date|N/A)"){
-					$htmlTableRow += "<td>$($server.vmTools)</td>"
+					$htmlTableRow += "<td>$($server.vmTools)</td>`n"
 				}elseif($server.vmTools -match "Not Installed"){
-					$htmlTableRow += "<td class=""fail"">$($server.vmTools)</td>"
-					$siteFailItems += "<li>One or more servers were detected as VMware VMs without VMware Tools installed.</li>"
+					$htmlTableRow += "<td class=`"fail`">$($server.vmTools)</td>`n"
+					$siteFailItems += "<li>One or more servers were detected as VMware VMs without VMware Tools installed.</li>`n"
 				}else{
-					$htmlTableRow += "<td class=""warn"">$($server.vmTools)</td>"
-					$siteWarnItems += "<li>One or more servers were detected as VMware VMs with an update available for VMware Tools.</li>"
+					$htmlTableRow += "<td class=`"warn`">$($server.vmTools)</td>`n"
+					$siteWarnItems += "<li>One or more servers were detected as VMware VMs with an update available for VMware Tools.</li>`n"
 				}
 				
 				#Column server sockets and socket warning
 				if ($server.Sockets -eq $server.Cores -and $server.Sockets -gt 1){
-					$htmlTableRow += "<td class=""warn"">$($server.Sockets)</td>"
+					$htmlTableRow += "<td class=`"warn`">$($server.Sockets)</td>`n"
 					$siteWarnItems += "<li>One or more servers CPU sockets is equal to cores. See `
 						<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' `
-						target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
+						target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>`n"
 				}else{
-					$htmlTableRow += "<td>$($server.Sockets)</td>"
+					$htmlTableRow += "<td>$($server.Sockets)</td>`n"
 				}
 				
 				#Column server cores
 				if ($server.Cores -lt 4 -and $server.Role -ne "SBA/SBS"){
-					$htmlTableRow += "<td class=""warn"">$($server.Cores)</td>"
+					$htmlTableRow += "<td class=`"warn`">$($server.Cores)</td>`n"
 					$siteWarnItems += "<li>One or more servers total cores is less than 4. See `
 						<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' `
-						target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>"
+						target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>`n"
 				}else{
-					$htmlTableRow += "<td>$($server.Cores)</td>"
+					$htmlTableRow += "<td>$($server.Cores)</td>`n"
 				}
 				
 				#Column server memory and inadequate server memory warning
 				if ($server.Memory -lt 16.00 -and $server.Role -ne "SBA/SBS"){
 					$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
-					$htmlTableRow += "<td class=""warn"">$($server.Memory)</td>"
+					$htmlTableRow += "<td class=`"warn`">$($server.Memory)</td>`n"
 					$siteWarnItems += "<li>RAM is less than 16GB.</li>"
 					
 				}else{
 					$server.Memory = "$('{0:N2}GB' -f $server.Memory)"
-					$htmlTableRow += "<td>$($server.Memory)</td>"
+					$htmlTableRow += "<td>$($server.Memory)</td>`n"
 				}
 				
 				#Column server drives and drive space warning
 				if ($server.HDD.FreeSpaceGB -lt 32){
-					$htmlTableRow += "<td class=""warn""><ul.hdd style='margin: 0;'>"
+					$htmlTableRow += "<td class=`"warn`"><ul.hdd style='margin: 0;'>`n"
 					foreach ($hdd in $server.HDD){
-						$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
+						$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>`n"
 					}
 				}else{
 					$htmlTableRow += "<td><ul.hdd style='margin: 0;'>"
 					foreach ($hdd in $server.HDD){
-						$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>"
+						$htmlTableRow += "<li>$($hdd.DriveLetter) $('{0:N2}GB' -f $hdd.FreeSpaceGB)/$('{0:N2}GB' -f $hdd.CapacityGB)</li>`n"
 					}
 				}
-				$htmlTableRow += "</ul.hdd></td>"
+				$htmlTableRow += "</ul.hdd></td>`n"
 				
 				#Column server power plan
 				if ($server.PowerPlan -eq "High Performance"){
-					$htmlTableRow += "<td>$($server.PowerPlan)</td>"
+					$htmlTableRow += "<td>$($server.PowerPlan)</td>`n"
 				}else{
-					$htmlTableRow += "<td class=""fail"">$($server.PowerPlan)</td>"
+					$htmlTableRow += "<td class=`"fail`">$($server.PowerPlan)</td>`n"
 					$siteFailItems += "<li>One or more servers power plan is not set to high performance. See `
 						<a href='https://support.microsoft.com/en-us/help/2207548/slow-performance-on-windows-server-when-using-the-balanced-power-plan' `
-						target='_blank'>KB2207548</a>.</li>"
+						target='_blank'>KB2207548</a>.</li>`n"
 				}
 				
 				#Column server uptime
 				if ($server.Uptime -gt 2160){
-					$htmlTableRow += "<td class=""warn"">$($server.Uptime)</td>"
+					$htmlTableRow += "<td class=`"warn`">$($server.Uptime)</td>`n"
 				}else{
-					$htmlTableRow += "<td>$($server.Uptime)</td>"
+					$htmlTableRow += "<td>$($server.Uptime)</td>`n"
 				}
 				
 				#Column server OS and unsupported OS warning
 				if ($server.OS -match "Server 2008 R2" -and $server.Role -eq "SBA/SBS" -and $server.Version -match "5.0"){
-					$htmlTableRow += "<td class=""warn"">$($server.OS -replace 'Microsoft Windows ','')</td>"
+					$htmlTableRow += "<td class=`"warn`">$($server.OS -replace 'Microsoft Windows ','')</td>`n"
 					$siteWarnItems += "<li>One or more servers is running Server 2008 R2 which is End-of-Life. `
 						Because this is a Lync Server 2013 SBA this is just a warning. See `
 						<a href='https://technet.microsoft.com/en-us/library/dn951388.aspx?f=255&mspperror=-2147217396#Anchor_1' `
-						target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>"
+						target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>`n"
 				}elseif ($server.OS -match "Server 2008 R2"){
-					$htmlTableRow += "<td class=""fail"">$($server.OS -replace 'Microsoft Windows ','')</td>"
+					$htmlTableRow += "<td class=`"fail`">$($server.OS -replace 'Microsoft Windows ','')</td>`n"
 					$siteFailItems += "<li>One or more servers is running Server 2008 R2 which is End-of-Life. See `
 						<a href='https://technet.microsoft.com/en-us/library/dn951388.aspx?f=255&mspperror=-2147217396#Anchor_1' `
 						target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>"
 				}elseif ($server.OS -notmatch "Server (2012|2012 R2|2016)"){
-					$htmlTableRow += "<td class=""fail"">$($server.OS -replace 'Microsoft Windows ','')</td>"
+					$htmlTableRow += "<td class=`"fail`">$($server.OS -replace 'Microsoft Windows ','')</td>`n"
 					$siteFailItems += "<li>One or more servers is not running a supported OS. See `
 						<a href='https://technet.microsoft.com/en-us/library/dn951388.aspx?f=255&mspperror=-2147217396#Anchor_1' `
-						target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>"
+						target='_blank'>Operating systems for Skype for Business Server 2015</a>.</li>`n"
 				}else{
-					$htmlTableRow += "<td>$($server.OS -replace 'Microsoft Windows ','')</td>"
+					$htmlTableRow += "<td>$($server.OS -replace 'Microsoft Windows ','')</td>`n"
 				}
 				
 				#Column server .NET and .NET version warning
 				if ($server.DotNet -notmatch "(4.6.2|4.5.2)"){
-					$htmlTableRow += "<td class=""warn"">$($server.DotNet)</td>"
+					$htmlTableRow += "<td class=`"warn`">$($server.DotNet)</td>`n"
 					$siteWarnItems += "<li>One or more servers .NET Framework is out-of-date. Version 4.5.2 or 4.6.2 is recommended. See `
 						<a href='https://blogs.technet.microsoft.com/nexthop/2016/02/11/on-net-framework-4-6-2-and-skype-for-businesslync-server-compatibility/' `
 						target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a>.</li>"
 				}else{
-					$htmlTableRow += "<td>$($server.DotNet)</td>"
+					$htmlTableRow += "<td>$($server.DotNet)</td>`n"
 				}
 				
 				#Column server certificate status and certificate warnings
 				$certStatus = "" | Select-Object Expiration,SignatureAlgorithm,NotFoundOrUntrusted
 				if ($server.Certs.NotAfter -lt (Get-Date).AddDays(30)){
 					$certStatus.Expiration = "Fail"
-					$siteFailItems += "<li>One or more servers certificates is expiring inside 30 days.</li>"
+					$siteFailItems += "<li>One or more servers certificates is expiring inside 30 days.</li>`n"
 				}elseif ($server.Certs.NotAfter -lt (Get-Date).AddDays(60)){
 					$certStatus.Expiration = "Warn"
-					$siteWarnItems += "<li>One or more servers certificates is expiring inside 60 days.</li>"
+					$siteWarnItems += "<li>One or more servers certificates is expiring inside 60 days.</li>`n"
 				}
 				if ($server.Certs.SignatureAlgorithm -match "sha1RSA"){
 					$certStatus.SignatureAlgorithm = "Warn"
-					$siteWarnItems += "<li>One or more servers certificates signing algorithm is SHA1.</li>"
+					$siteWarnItems += "<li>One or more servers certificates signing algorithm is SHA1.</li>`n"
 				}
 				if ($server.Certs.NotFoundOrUntrusted -eq $true){
 					$certStatus.NotFoundOrUntrusted = "Fail"
-					$siteWarnItems += "<li>One or more servers certificates is missing or untrusted.</li>"
+					$siteWarnItems += "<li>One or more servers certificates is missing or untrusted.</li>`n"
 				}
 				if ($certStatus -match "Fail"){
-					$htmlTableRow += "<td class=""fail"">Fail</td>"
+					$htmlTableRow += "<td class=`"fail`">Fail</td>`n"
 				}elseif ($certStatus -match "Warn"){
-					$htmlTableRow += "<td class=""warn"">Warn</td>"
+					$htmlTableRow += "<td class=`"warn`">Warn</td>`n"
 				}else{
-					$htmlTableRow += "<td>Pass</td>"
+					$htmlTableRow += "<td>Pass</td>`n"
 				}
 				
 				#Root and intermediate certificate warnings
 				if ($server.CACerts.MisplacedCertInRootStore){
 					$siteFailItems += "<li>One or more servers have non-root certificates in the Trusted Root Certifiate Store. This will cause the Front-End service to fail to start. `
 						See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#non-root-certificates-in-trusted-root-certificate-store' `
-						target='_blank'>Non-root certificates in Trusted Root Certificate Store</a> for more information.</li>"
+						target='_blank'>Non-root certificates in Trusted Root Certificate Store</a> for more information.</li>`n"
 				}
 				if ($server.CACerts.DuplicateRoot){
 					$siteWarnItems += "<li>One or more servers have duplicate certificates in the Trusted Root Certificate Store. `
 						See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#duplicates-in-trusted-root-certificate-store' `
-						target='_blank'>Duplicates in Trusted Root Certificate Store</a> for more information.</li>"
+						target='_blank'>Duplicates in Trusted Root Certificate Store</a> for more information.</li>`n"
 				}
 				if ($server.CACerts.RootCertCount.Count -gt 100){
 					$siteWarnItems += "<li>One or more servers has more than 100 certificates in the Trusted Root Certificate Store. This can cause TLS failures. `
 						See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#more-than-100-certificates-in-trusted-root-certificate-store' `
-						target='_blank'>More than 100 certificates in Trusted Root Certificate Store</a> for more information.</li>"
+						target='_blank'>More than 100 certificates in Trusted Root Certificate Store</a> for more information.</li>`n"
 				}
 				if ($server.CACerts.DuplicateFriendlyName){
 					$siteWarnItems += "<li>One or more servers have certificates with duplicate friendly names. `
 						See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#duplicate-friendly-name' `
-						target='_blank'>Duplicate Friendly Name</a> for more information.</li>"
+						target='_blank'>Duplicate Friendly Name</a> for more information.</li>`n"
 				}
 				
 				#Column QoS check
 				if ($server.QoS -match $false){
-					$htmlTableRow += "<td class=""fail"">Fail</td>"
+					$htmlTableRow += "<td class=`"fail`">Fail</td>`n"
 					$siteFailItems += "<li>One or more servers is missing or has misconfigured QoS policies."
 				}else{
-					$htmlTableRow += "<td>Pass</td>"
+					$htmlTableRow += "<td>Pass</td>`n"
 				}
 				
 				#Column DNS check and DNS check warning
 				if ($server.DnsCheck -ne "Pass"){
-					$htmlTableRow += "<td class=""fail"">$($server.DnsCheck)</td>"
+					$htmlTableRow += "<td class=`"fail`">$($server.DnsCheck)</td>`n"
 					$siteFailItems += "<li>One or more servers is missing DNS A records."
 				}else{
-					$htmlTableRow += "<td>$($server.DnsCheck)</td>"
+					$htmlTableRow += "<td>$($server.DnsCheck)</td>`n"
 				}
 				
 				#Column last update install date
 				if ($server.LastUpdate -lt (Get-Date).addDays(-90)){
 					$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
-					$htmlTableRow += "<td class=""warn"">$($server.LastUpdate)</td>"
+					$htmlTableRow += "<td class=`"warn`">$($server.LastUpdate)</td>`n"
 					$siteWarnItems += "<li>One or more servers has not had Windows patches applied in the last 90 days."
 				}else{
 					$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
-					$htmlTableRow += "<td>$($server.LastUpdate)</td>"
+					$htmlTableRow += "<td>$($server.LastUpdate)</td>`n"
 				}
 			}else{
 				#If server is unaccessible build row with blank values
-				$htmlTableRow += "<td class=""fail"">$(($server.Server).Split(".")[0])</td>"
+				$htmlTableRow += "<td class=`"fail`">$(($server.Server).Split(".")[0])</td>`n"
 				if (!($server.Connectivity)){
 					$siteFailItems += "<li>One or more servers are not accessible or offline.</li>"
 				}elseif (!($server.Permission)){
@@ -803,7 +803,8 @@ foreach ($site in $sites){
 				$htmlTableRow += "<td></td>" #$server.DnsCheck
 				$htmlTableRow += "<td></td>" #$server.LastUpdate
 			}
-			$htmlTableRow += "</tr>"
+			$htmlTableRow += "</tr>`n
+				`n"
 			
 			$siteServersHtmlTable += $htmlTableRow
 			
@@ -816,29 +817,29 @@ foreach ($site in $sites){
 		}
 		
 		#Convert site header, site summary, and site server summary to HTML and combine with body
-		$siteHtmlBody += "<h3>$($Site.Name)</h3>
+		$csSiteHtmlTab += "<h3>$($Site.Name)</h3>
 			<p>$($site | Select-Object * -ExcludeProperty Identity,Name | ConvertTo-Html -As Table -Fragment)</p>
 			<p>
-			<table class=""csservers"">
+			<table class=`"csservers`">
 			<tr>
-			<th width=""100px"">Pool</th>
-			<th width=""100px"">Server</th>
-			<th width=""60px"">Role</th>
-			<th width=""80px"">Version</th>
-			<th width=""100px"">Hardware</th>
-			<th width=""70px"">VMware Tools</th>
-			<th width=""40px"">Sockets</th>
-			<th width=""40px"">Cores</th>
-			<th width=""40px"">Memory</th>
-			<th width=""130px"">HDD</th>
-			<th width=""95px"">Power Plan</th>
-			<th width=""40px"">Uptime</th>
-			<th width=""120px"">OS</th>
-			<th width=""30px"">.NET</th>
-			<th width=""30px"">Certs</th>
-			<th width=""30px"">QoS</th>
-			<th width=""30px"">DNS</th>
-			<th width=""50px"">Last Update</th>
+			<th width=`"100px`">Pool</th>
+			<th width=`"100px`">Server</th>
+			<th width=`"60px`">Role</th>
+			<th width=`"80px`">Version</th>
+			<th width=`"100px`">Hardware</th>
+			<th width=`"70px`">VMware Tools</th>
+			<th width=`"40px`">Sockets</th>
+			<th width=`"40px`">Cores</th>
+			<th width=`"40px`">Memory</th>
+			<th width=`"130px`">HDD</th>
+			<th width=`"95px`">Power Plan</th>
+			<th width=`"40px`">Uptime</th>
+			<th width=`"120px`">OS</th>
+			<th width=`"30px`">.NET</th>
+			<th width=`"30px`">Certs</th>
+			<th width=`"30px`">QoS</th>
+			<th width=`"30px`">DNS</th>
+			<th width=`"50px`">Last Update</th>
 			</tr>
 			$siteServersHtmlTable
 			</table>
@@ -871,10 +872,12 @@ foreach ($site in $sites){
 		}
 		
 		#Combine site HTML body and lists
-		$siteHtmlBody = "$siteHtmlBody
+		$csSiteHtmlTab = "<div class=`"tab-content`">
+			$csSiteHtmlTab
 			$siteHtmlFail
 			$siteHtmlWarn
-			$siteHtmlInfo"
+			$siteHtmlInfo
+			</div>"
 	}
 }
 
@@ -889,36 +892,220 @@ foreach ($site in $sites){
 $StepStopWatch = [system.diagnostics.stopwatch]::startNew()
 
 #Header
-$HtmlHead = "<html>
-	<style>
-	BODY{font-family: Calibri; font-size: 11pt; margin-top: 10px; margin-bottom: 60px;}
-	H1{font-size: 22px;}
-	H2{font-size: 19px; padding-top: 10px;}
-	H3{font-size: 17px; padding-top: 8px;}
-	TABLE{border: 1px solid black; border-collapse: collapse; font-size: 9pt; table-layout: fixed;}
-	TABLE.csservers{table-layout: fixed;}
-	TABLE.testresults{width: 850px;}
-	TABLE.summary{text-align: center; width: auto;}
-	TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
-	TH.summary{width: 80px;}
-	TH.test{width: 120px;}
-	TH.description{width: 150px;}
-	TH.outcome{width: 50px}
-	TH.comments{width: 120px;}
-	TH.details{width: 270px;}
-	TH.reference{width: 60px;}
-	TD{border: 1px solid black; padding: 5px; vertical-align: top; word-wrap:break-word;}
-	td.pass{background: #7FFF00;}
-	td.warn{background: #FFFF00;}
-	td.fail{background: #FF0000; color: #ffffff;}
-	td.info{background: #85D4FF;}
-	tr:nth-child(even){background: #dae5f4;}
-	tr:nth-child(odd){background: #b8d1f3;}
-	ul.hdd{list-style: inside; padding-left: 0px; list-style-type:square;}
-	ul{list-style: inside; padding-left: 10px; list-style-type:square; margin: -10px 0;}
-	p2{font-size: 9pt;}
-	</style>
-	<body>"
+$HtmlHead = '<html>
+	<head>
+		<meta charset="utf-8">
+		<title>CsReport</title>
+		<style>
+			BODY{font-family: "Segue UI"; font-size: 12pt; margin-top: 10px; margin-bottom: 60px;}
+			H1{font-size: 22px;}
+			H2{font-size: 19px; padding-top: 10px;}
+			H3{font-size: 16px; padding-top: 8px;}
+			TABLE{border: 1px solid black; border-collapse: collapse; font-size: 11pt; table-layout: fixed;}
+			TABLE.csservers{table-layout: fixed;}
+			TABLE.testresults{width: 850px;}
+			TABLE.summary{text-align: center; width: auto;}
+			TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
+			TH.summary{width: 80px;}
+			TH.test{width: 120px;}
+			TH.description{width: 150px;}
+			TH.outcome{width: 50px}
+			TH.comments{width: 120px;}
+			TH.details{width: 270px;}
+			TH.reference{width: 60px;}
+			TD{border: 1px solid black; padding: 5px; vertical-align: top; word-wrap:break-word;}
+			td.pass{background: #7FFF00;}
+			td.warn{background: #FFFF00;}
+			td.fail{background: #FF0000; color: #ffffff;}
+			td.info{background: #85D4FF;}
+			tr:nth-child(even){background: #dae5f4;}
+			tr:nth-child(odd){background: #b8d1f3;}
+			ul.hdd{list-style: inside; padding-left: 0px; list-style-type:square;}
+			ul{list-style: inside; padding-left: 0px; list-style-type:square; margin: -10px 0;}
+			p2{font-size: 12pt;}
+
+			.tab-wrap {
+				-webkit-transition: 0.3s box-shadow ease;
+				transition: 0.3s box-shadow ease;
+				border-radius: 6px;
+				max-width: 100%;
+				display: -webkit-box;
+				display: -webkit-flex;
+				display: -ms-flexbox;
+				display: flex;
+				-webkit-flex-wrap: wrap;
+				-ms-flex-wrap: wrap;
+				flex-wrap: wrap;
+				position: relative;
+				list-style: none;
+				background-color: #fff;
+				margin: 40px 0;
+				#box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+			}
+
+			#.tab-wrap:hover { box-shadow: 0 12px 23px rgba(0, 0, 0, 0.23), 0 10px 10px rgba(0, 0, 0, 0.19); }
+
+			.tab { display: none; }
+			
+			.tab:checked:nth-of-type(1) ~ .tab-content:nth-of-type(1) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+
+			.tab:checked:nth-of-type(2) ~ .tab-content:nth-of-type(2) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+
+			.tab:checked:nth-of-type(3) ~ .tab-content:nth-of-type(3) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+
+			.tab:checked:nth-of-type(4) ~ .tab-content:nth-of-type(4) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+
+			.tab:checked:nth-of-type(5) ~ .tab-content:nth-of-type(5) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+
+			.tab:first-of-type:not(:last-of-type) + label {
+				border-top-right-radius: 0;
+				border-bottom-right-radius: 0;
+			}
+
+			.tab:not(:first-of-type):not(:last-of-type) + label { border-radius: 0; }
+
+			.tab:last-of-type:not(:first-of-type) + label {
+				border-top-left-radius: 0;
+				border-bottom-left-radius: 0;
+			}
+
+			.tab:checked + label {
+				background-color: #fff;
+				box-shadow: 0 -1px 0 #fff inset;
+				cursor: default;
+			}
+
+			.tab:checked + label:hover {
+				box-shadow: 0 -1px 0 #fff inset;
+				background-color: #fff;
+			}
+
+			.tab + label {
+				box-shadow: 0 -1px 0 #eee inset;
+				border-radius: 6px 6px 0 0;
+				cursor: pointer;
+				display: block;
+				text-decoration: none;
+				color: #333;
+				-webkit-box-flex: 3;
+				-webkit-flex-grow: 3;
+				-ms-flex-positive: 3;
+				flex-grow: 3;
+				text-align: center;
+				background-color: #d6d6d6;
+				-webkit-user-select: none;
+				-moz-user-select: none;
+				-ms-user-select: none;
+				user-select: none;
+				text-align: center;
+				-webkit-transition: 0.3s background-color ease, 0.3s box-shadow ease;
+				transition: 0.3s background-color ease, 0.3s box-shadow ease;
+				height: 50px;
+				box-sizing: border-box;
+				padding: 15px;
+				font-weight: bold;
+			}
+
+			.tab + label:hover {
+				background-color: #f9f9f9;
+				box-shadow: 0 1px 0 #f4f4f4 inset;
+			}
+
+			.tab-content {
+				padding: 10px 25px;
+				background-color: transparent;
+				position: absolute;
+				width: 100%;
+				z-index: -1;
+				opacity: 0;
+				left: 0;
+				-webkit-transform: translateY(-3px);
+				-ms-transform: translateY(-3px);
+				transform: translateY(-3px);
+				border-radius: 6px;
+			}
+		</style>
+	</head>
+	<body>'
+
+$HtmlTabWrap = '
+		<!-- https://www.cssscript.com/pure-css-tabs-component-with-transitions-between-variable-heights/ -->
+		<div class="tab-wrap">
+		<input type="radio" id="tab1" name="tabGroup1" class="tab" checked>
+		<label for="tab1">Active Directory</label>
+
+		<input type="radio" id="tab2" name="tabGroup1" class="tab">
+		<label for="tab2">Skype for Business</label>
+
+		<input type="radio" id="tab3" name="tabGroup1" class="tab">
+		<label for="tab3">Sites</label>
+
+		<input type="radio" id="tab4" name="tabGroup1" class="tab">
+		<label for="tab4">Servers</label>
+
+		<input type="radio" id="tab5" name="tabGroup1" class="tab">
+		<label for="tab5">Voice</label>
+		
+		<input type="radio" id="tab6" name="tabGroup1" class="tab">
+		<label for="tab6">QoS</label>
+		
+		<input type="radio" id="tab7" name="tabGroup1" class="tab">
+		<label for="tab7">Best Practices</label>'
 
 #Active Directory
 foreach ($suffix in $($adForest.UPNSuffixes)){
@@ -931,38 +1118,38 @@ foreach ($site in $($adForest.Sites)){
 }
 
 #Convert global summary tables to HTML and combine with AD body
-$adHtmlBody = "<h2>Environment Overview</h2>
-	<p></p>
-	<h3>Active Directory</h3>
-	<p><b>Forest Name:</b> $($adForest.Name)<br />
-	<b>Forest Mode:</b> $($adForest.ForestMode)<br />
-	<b>Domain Name:</b> $($adDomain.DNSRoot) ($($adDomain.NetBIOSName))<br />
-	<b>Domain Mode:</b> $($adDomain.DomainMode)<br />
-	<b>UPN Suffixes:</b>
-	<ul>
-	$adSuffixes
-	</ul>
-	</p>
-	<p><b>Sites:</b>
-	<ul>
-	$adSites
-	</ul>
-	</p>"
-	
+$adHtmlTab = "
+		
+		<div class=`"tab-content`">
+		<p><b>Forest Name:</b> $($adForest.Name)<br />
+		<b>Forest Mode:</b> $($adForest.ForestMode)<br />
+		<b>Domain Name:</b> $($adDomain.DNSRoot) ($($adDomain.NetBIOSName))<br />
+		<b>Domain Mode:</b> $($adDomain.DomainMode)<br />
+		<b>UPN Suffixes:</b>
+		<ul>
+		$adSuffixes
+		</ul>
+		</p>
+		<p><b>Sites:</b>
+		<ul>
+		$adSites
+		</ul>
+		</p>"
+
 #Convert adminCount groups to HTML and combine with AD body
 if ($adGroupAdmin){
-	$adHtmlBody += "<p>Failed Items</p>
+	$adHtmlTab += "<p>Failed Items</p>
 		<ul>"
 	foreach ($adGroup in $adGroupAdmin){
-		$adHtmlBody += "<li>$($adGroup.Name) has adminCount greater than 0. `
+		$adHtmlTab += "<li>$($adGroup.Name) has adminCount greater than 0. `
 		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
 	}
-	$adHtmlBody += "</ul>"
+	$adHtmlTab += "</ul>"
 }
-	
+
 #Convert Domain Controllers to HTML and combine with AD body
 if ($adDomainControllers){
-	$adHtmlBody += "<h3>Domain Controllers</h3>
+	$adHtmlTab += "<h3>Domain Controllers</h3>
 		<p>$($adDomainControllers | ConvertTo-Html -As Table -Fragment)</p>"
 }
 
@@ -970,17 +1157,17 @@ if ($adDomainControllers){
 if ($CAs){
 	#Build CA HTML table rows
 	foreach ($ca in $CAs){
-		$htmlTableRow = "<tr>"
-		$htmlTableRow += "<td>$($ca.CommonName)</td>"
-		$htmlTableRow += "<td>$($ca.Server)</td>"
+		$htmlTableRow = "<tr>`n"
+		$htmlTableRow += "<td>$($ca.CommonName)</td>`n"
+		$htmlTableRow += "<td>$($ca.Server)</td>`n"
 		if ($ca.Online){
-			$htmlTableRow += "<td>$($ca.Online)</td>"
+			$htmlTableRow += "<td>$($ca.Online)</td>`n"
 			if (!($ca.WebServerTemplate)){
-				$caWarnItems += "<li>$($ca.Server): Web server template is unavailable.</li>"
+				$caWarnItems += "<li>$($ca.Server): Web server template is unavailable.</li>`n"
 			}
 		}else{
-			$htmlTableRow += "<td class=""fail"">$($ca.Online)</td>"
-			$caWarnItems += "<li>$($ca.Server): CA server is unavailable (this is expected if this CA is designed as an offline root).</li>"
+			$htmlTableRow += "<td class=`"fail`">$($ca.Online)</td>"
+			$caWarnItems += "<li>$($ca.Server): CA server is unavailable (this is expected if this CA is designed as an offline root).</li>`n"
 		}
 		
 		$caHtmlTable += $htmlTableRow
@@ -994,7 +1181,7 @@ if ($CAs){
 	}
 	
 	#Build CA HTML
-	$caHtmlBody = "<h3>Certificate Authorities</h3>
+	$adCaHtmlTab = "<h3>Certificate Authorities</h3>
 		<table>
 		<tr>
 		<th>Common Name</th>
@@ -1003,35 +1190,39 @@ if ($CAs){
 		</tr>
 		$caHtmlTable
 		</table>
-		$caHtmlWarn"
+		$caHtmlWarn
+		</div>`n"
+}else{
+	$adHtmlTab += "</div>`n"
 }
 
 #Generate global CS HTML
 #Generate CMS HTML
-$cmsHtml = "<b>Active CMS:</b> $(($csSummary.CMS | Where-Object Active -eq $true).PoolFqdn)"
+$cmsHtml = "<b>Active CMS:</b> $(($csSummary.CMS | Where-Object Active -eq $true).PoolFqdn)`n"
 if ($csSummary.CMS | Where-Object Active -eq $false){
-	$cmsHtml += "<br /><b>Backup CMS:</b> $(($csSummary.CMS | Where-Object Active -eq $false).PoolFqdn)"
+	$cmsHtml += "<br /><b>Backup CMS:</b> $(($csSummary.CMS | Where-Object Active -eq $false).PoolFqdn)`n"
 }
 
 #Generate SIP domains HTML
 foreach ($sipDomain in $($csSummary.SipDomain)){
 	if ($sipDomain.IsDefault){
-		$sipDomainHtml += "<li>$($sipDomain.Name) (Default)</li>"
+		$sipDomainHtml += "<li>$($sipDomain.Name) (Default)</li>`n"
 	}else{
-		$sipDomainHtml += "<li>$($sipDomain.Name)</li>"
+		$sipDomainHtml += "<li>$($sipDomain.Name)</li>`n"
 	}
 }
 
 #Generate meet URLs HTML
 foreach ($meetUrl in $($csSummary.MeetUrl)){
-	$meetUrlHtml += "<li>$($meetUrl.ActiveUrl) ($($meetUrl.Domain))</li>"
+	$meetUrlHtml += "<li>$($meetUrl.ActiveUrl) ($($meetUrl.Domain))</li>`n"
 }
 
 #Generate dialin URLs HTML
 foreach ($dialinUrl in $($csSummary.DialinUrl)){
-	$dialinUrlHtml += "<li>$($dialinUrl.ActiveUrl) ($($dialinUrl.Domain))</li>"
+	$dialinUrlHtml += "<li>$($dialinUrl.ActiveUrl) ($($dialinUrl.Domain))</li>`n"
 }
 
+#Generate CMS replication table HTML
 if ($csMgmtReplication){
 	$cmsReplicaHtml = "<p><b>Failed CMS Replicas:</b>
 		$($csMgmtReplication | ConvertTo-Html -As Table -Fragment)</p>"
@@ -1052,7 +1243,7 @@ $csTopologyHtml = "<p>$cmsHtml
 		$dialinUrlHtml
 		</ul></p>
 	<p><b>Admin URL:</b> $($csSummary.AdminUrl.ActiveUrl)</p>
-	$cmsReplicaHtml"
+	$cmsReplicaHtml`n"
 
 #Global Summary
 $csSummaryHtml = "<p><b>Summary:</b>
@@ -1062,21 +1253,21 @@ $csSummaryHtml = "<p><b>Summary:</b>
 if ($globalSummary."Address Mismatch" -gt 0){
 	$globalWarnItems += "<li>Users exist whose SIP address and primary STMP addresses do not match. `
 		This will cause Exchange integration issues for these users. `
-		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' target='_blank'>Address Mismatch</a>.</li>"
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' target='_blank'>Address Mismatch</a>.</li>`n"
 }
 if ($globalSummary."AD Disabled" -gt 0){
 	$globalWarnItems += "<li>Users exist that are disabled in AD but are enabled for Skype4B. `
 		These users may still be able to login to Skype4B. `
-		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests/_edit#ad-disabled' target='_blank'>AD Disabled</a>.</li>"
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests/_edit#ad-disabled' target='_blank'>AD Disabled</a>.</li>`n"
 }
 if ($globalSummary."Admin Users" -gt 0){
 	$globalInfoItems += "<li>Users exist with adminCount greater than 0. `
 		Attempts to modify these users Skype4B configurations may fail with access denied. `
-		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>`n"
 }
 if ($csMgmtReplication){
 	$globalFailItems += "<li>One or more servers CMS replicas are not up to date. `
-		See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#cms-replica-not-up-to-date' target='_blank'>CMS replica not up-to-date</a>.</li>"
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#cms-replica-not-up-to-date' target='_blank'>CMS replica not up-to-date</a>.</li>`n"
 }
 
 #Generate message lists
@@ -1100,13 +1291,13 @@ if ($globalInfoItems){
 }
 
 #Combine csTopologyHtml and csSummaryHtml with message lists
-$globalCsHtmlBody += "<br />
-	<h2>Skype for Business Server</h2>
+$globalCsHtmlTab += "<div class=`"tab-content`">
 	$csTopologyHtml
 	$csSummaryHtml
 	$globalHtmlFail
 	$globalHtmlWarn
-	$globalHtmlInfo"
+	$globalHtmlInfo
+	</div>`n"
 
 #Close Report
 $HtmlTail = "</body>
@@ -1125,14 +1316,14 @@ if ($Timing){
 }
 
 #Title generated at end of script for runtime information
-$HtmlTitle = "<h1>Skype for Business Report</h1>
+$HtmlTitle = "<h1>CsReport</h1>
 	<p2>Date: $(Get-Date)<br />
 	Author: $(whoami)<br />
 	Machine: $(hostname)<br />
 	Elapsed: $($StopWatch.Elapsed.ToString('mm\:ss'))</p2>"
 
 #Combine HTML sections
-$htmlReport = $HtmlHead + $HtmlTitle + $adHtmlBody + $caHtmlBody + $globalCsHtmlBody + $siteHtmlBody + $HtmlTail
+$htmlReport = $HtmlHead + $HtmlTitle + $HtmlTabWrap + $adHtmlTab + $adCaHtmlTab + $globalCsHtmlTab + $csSiteHtmlTab + $HtmlTail
 
 $htmlReport | Out-File "$env:UserProfile\Desktop\CsReport.html" -Encoding UTF8
 
