@@ -6,5 +6,5 @@ This script must be run from one of your Lync or Skype for Business servers. Cur
 
 You may run this script directly from GitHub with the commands below:
 ```
-Invoke-WebRequest https://raw.githubusercontent.com/argiesen/Get-CsReport/master/Get-CsReport.ps1 -OutFile "$env:Temp\Get-CsReport.ps1";. "$env:Temp\Get-CsReport.ps1"
+Invoke-WebRequest https://raw.githubusercontent.com/argiesen/Get-CsReport/master/Get-CsReport.ps1 -OutFile "$env:Temp\Get-CsReport.ps1"; "$env:Temp\Get-CsReport.ps1"
 ```
