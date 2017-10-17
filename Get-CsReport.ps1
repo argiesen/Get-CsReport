@@ -1134,6 +1134,6 @@ $HtmlTitle = "<h1>Skype for Business Report</h1>
 #Combine HTML sections
 $htmlReport = $HtmlHead + $HtmlTitle + $adHtmlBody + $caHtmlBody + $globalCsHtmlBody + $siteHtmlBody + $HtmlTail
 
-$htmlReport | Out-File "$($env:UserProfile)\Desktop\CsReport.html" -Encoding UTF8
+$htmlReport | Out-File "$env:UserProfile\Desktop\CsReport.html" -Encoding UTF8
 
 Invoke-Expression "$env:UserProfile\Desktop\CsReport.html"
