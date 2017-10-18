@@ -1090,14 +1090,14 @@ $HtmlHead = '<html>
 				text-shadow: 0 0 0;
 			}
 
-			.tab:first-of-type:not(:last-of-type) + label {
+			#.tab:first-of-type:not(:last-of-type) + label {
 				border-top-right-radius: 0;
 				border-bottom-right-radius: 0;
 			}
 
-			.tab:not(:first-of-type):not(:last-of-type) + label { border-radius: 0; }
+			#.tab:not(:first-of-type):not(:last-of-type) + label { border-radius: 0; }
 
-			.tab:last-of-type:not(:first-of-type) + label {
+			#.tab:last-of-type:not(:first-of-type) + label {
 				border-top-left-radius: 0;
 				border-bottom-left-radius: 0;
 			}
