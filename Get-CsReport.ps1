@@ -997,7 +997,14 @@ $HtmlHead = '<html>
 
 			#.tab-wrap:hover { box-shadow: 0 12px 23px rgba(0, 0, 0, 0.23), 0 10px 10px rgba(0, 0, 0, 0.19); }
 
-			.tab { display: none; }
+			.tab {
+				display: none; 
+				border-top-left-radius: 0;
+				border-top-right-radius: 0;
+				border-bottom-left-radius: 0;
+				border-bottom-right-radius: 0;
+				border-radius: 0;
+			}
 			
 			.tab:checked:nth-of-type(1) ~ .tab-content:nth-of-type(1) {
 				opacity: 1;
