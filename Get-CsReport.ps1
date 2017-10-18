@@ -311,7 +311,8 @@ foreach ($site in $sites){
 				DotNet,`
 				Certs,`
 				CACerts,`
-				QoS,`
+				QoSStatus,`
+				QoSPolicies,`
 				DnsCheck,`
 				LastUpdate,`
 				Connectivity,`
@@ -447,6 +448,7 @@ foreach ($site in $sites){
 						$CACerts.RootCertCount = Get-ChildItem cert:\LocalMachine\root | Measure-Object
 						$CACerts.DuplicateFriendlyName = Get-ChildItem cert:\LocalMachine\my | Group-Object -Property FriendlyName | Where-Object {$_.Count -gt 1}
 						$CACerts.MisplacedRootInIntStore = Get-ChildItem Cert:\localmachine\CA | Where-Object {$_.Issuer -eq $_.Subject}
+						
 						return $CACerts
 					}
 					
@@ -455,95 +457,95 @@ foreach ($site in $sites){
 					$isConfServer = (Get-CsService -ConferencingServer) -match $csPool.Identity
 					$isMedServer = (Get-CsService -MediationServer) -match $csPool.Identity
 					
-					$server.QoS = Invoke-Command -ComputerName $server.Server -ArgumentList $isConfServer,$isMedServer -ScriptBlock {
-						param (
-							$isConfServer = $args[0],
-							$isMedServer = $args[1]
-						)
+					#Collect QoS policies
+					$qosRegPolicies = Invoke-Command -ComputerName $server.Server -ScriptBlock {
+						return Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.PSPath}
+					}
 					
-						$QoSPolicies = "" | Select-Object Audio,Video,AppShare,Signaling
-						
-						$qosGroupPolicies = Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.PSPath} | `
-							Select-Object @{l="Name";e={($_.PSPath -split "\\")[7]}},Version,Protocol,"Application Name",`
-							"Local Port","Local IP","Local IP Prefix Length","Remote Port","Remote IP","Remote IP Prefix Length","DSCP Value", `
-							AppName,SrcPortLow,SrcPortHigh,DSCP
-						
-						if ($qosGroupPolicies){
-							if ($isConfServer){
-								$audioPolicy = $qosGroupPolicies | Where-Object {$_.DSCP -match 46 -or $_."DSCP Value" -match 46}
-								$videoPolicy = $qosGroupPolicies | Where-Object {$_.DSCP -match 34 -or $_."DSCP Value" -match 34}
-								#$appSharePolicy = $qosGroupPolicies | Where-Object {$_.DSCP -match 18 -or $_."DSCP Value" -match 18}
-								
-								#Check for audio QoS policies
-								if ($audioPolicy | Where-Object Version -eq "1.0"){
-									if (($audioPolicy | Where-Object "Local Port" -match $isConfServer.AudioPortStart) | Where-Object "Local Port" -match ($isConfServer.AudioPortStart + $isConfServer.AudioPortCount)){
-										$QoSPolicies.Audio = $true
-									}else{
-										$QoSPolicies.Audio = $false
-									}
-								}elseif ($audioPolicy | Where-Object Version -eq "2.0"){
-									if (($audioPolicy | Where-Object SrcPortLow -match $isConfServer.AudioPortStart) | Where-Object SrcPortHigh -match ($isConfServer.AudioPortStart + $isConfServer.AudioPortCount)){
-										$QoSPolicies.Audio = $true
-									}else{
-										$QoSPolicies.Audio = $false
-									}
-								}
-								
-								#Check for video QoS policies
-								if ($videoPolicy | Where-Object Version -eq "1.0"){
-									if (($videoPolicy | Where-Object "Local Port" -match $isConfServer.VideoPortStart) | Where-Object "Local Port" -match ($isConfServer.VideoPortStart + $isConfServer.VideoPortCount)){
-										$QoSPolicies.Video = $true
-									}else{
-										$QoSPolicies.Video = $false
-									}
-								}elseif ($videoPolicy | Where-Object Version -eq "2.0"){
-									if (($videoPolicy | Where-Object SrcPortLow -match $isConfServer.VideoPortStart) | Where-Object SrcPortHigh -match ($isConfServer.VideoPortStart + $isConfServer.VideoPortCount)){
-										$QoSPolicies.Video = $true
-									}else{
-										$QoSPolicies.Video = $false
-									}
-								}
-								
-								#Check for appshare QoS policies
-							<# 	if ($appSharePolicy | Where-Object Version -eq "1.0"){
-									if (($videoPolicy | Where-Object "Local Port" -match $isConfServer.AppSharingPortStart) | Where-Object "Local Port" -match ($isConfServer.AppSharingPortStart + $isConfServer.AppSharingPortCount)){
-										$QoSPolicies.AppShare = $true
-									}else{
-										$QoSPolicies.AppShare = $false
-									}
-								}elseif ($appSharePolicy | Where-Object Version -eq "2.0"){
-									if (($appSharePolicy | Where-Object SrcPortLow -match $isConfServer.AppSharingPortStart) | Where-Object SrcPortHigh -match ($isConfServer.AppSharingPortStart + $isConfServer.AppSharingPortCount)){
-										$QoSPolicies.AppShare = $true
-									}else{
-										$QoSPolicies.AppShare = $false
-									}
-								} #>
-							}elseif ($isMedServer){
-								#Check for audio QoS policy for mediation
-								if ($audioPolicy | Where-Object Version -eq "1.0"){
-									if (($audioPolicy | Where-Object "Local Port" -match $isMedServer.AudioPortStart) | Where-Object "Local Port" -match ($isMedServer.AudioPortStart + $isMedServer.AudioPortCount)){
-										$QoSPolicies.Audio = $true
-									}else{
-										$QoSPolicies.Audio = $false
-									}
-								}elseif ($audioPolicy | Where-Object Version -eq "2.0"){
-									if (($audioPolicy | Where-Object SrcPortLow -match $isMedServer.AudioPortStart) | Where-Object SrcPortHigh -match ($isMedServer.AudioPortStart + $isMedServer.AudioPortCount)){
-										$QoSPolicies.Audio = $true
-									}else{
-										$QoSPolicies.Audio = $false
-									}
-								}
+					if ($qosRegPolicies){
+						#Normalize QoS v1.0 registry entries
+						$qosPolicies = @()
+						foreach ($qosRegPolicy in $qosRegPolicies){
+							if ($qosRegPolicy.Version -eq "1.0"){
+								$qosPolicyOut = $qosRegPolicy | `
+									Select-Object @{l="Name";e={($_.PSPath -split "\\")[7]}},`
+									Version,`
+									@{l="AppName";e={$_."Application Name"}},`
+									Protocol,`
+									@{l="SrcIP";e={$_."Local IP"}},`
+									@{l="SrcIPPrefix";e={$_."Local IP Prefix Length"}},`
+									@{l="SrcPortLow";e={($_."Local Port" -split ":")[0]}},`
+									@{l="SrcPortHigh";e={($_."Local Port" -split ":")[1]}},`
+									@{l="DstIP";e={$_."Remote IP"}},`
+									@{l="DstIPPrefix";e={$_."Remote IP Prefix Length"}},`
+									@{l="DstPortLow";e={($_."Remote Port" -split ":")[0]}},`
+									@{l="DstPortHigh";e={($_."Remote Port" -split ":")[1]}},`
+									@{l="DSCP";e={$_."DSCP Value"}}
+							}elseif($qosRegPolicy.Version -eq "2.0"){
+								$qosPolicyOut = $qosRegPolicy | `
+									Select-Object @{l="Name";e={($_.PSPath -split "\\")[7]}},`
+									Version,`
+									AppName,`
+									Protocol,`
+									SrcIP,`
+									SrcIPPrefix,`
+									SrcPortLow,`
+									SrcPortHigh,`
+									DstIP,`
+									DstIPPrefix,`
+									DstPortLow,`
+									DstPortHigh,`
+									DSCP
 							}
-						}else{
-							#No QoS Policies found
-							$QoSPolicies.Audio = $false
-							$QoSPolicies.Video = $false
-							$QoSPolicies.AppShare = $false
-							$QoSPolicies.Signaling = $false
+							
+							$qosPolicies += $qosPolicyOut
 						}
 						
-						return $QoSPolicies
+						$server.QoSPolicies = $qosPolicies
+						
+						#Evaluate QoS policies
+						$qosStatus = "" | Select-Object AudioConf,AudioMed,Video,AppShare,Signaling
+						
+						if ($isConfServer){
+							#Check for audio QoS policies
+							if ($qosPolicies | Where-Object DSCP -match 46 | Where-Object SrcPortLow -match $isConfServer.AudioPortStart | Where-Object SrcPortHigh -match ($isConfServer.AudioPortStart + $isConfServer.AudioPortCount)){
+								$qosStatus.AudioConf = $true
+							}else{
+								$qosStatus.AudioConf = $false
+							}
+							
+							#Check for video QoS policies
+							if ($qosPolicies | Where-Object DSCP -match 34 | Where-Object SrcPortLow -match $isConfServer.VideoPortStart | Where-Object SrcPortHigh -match ($isConfServer.VideoPortStart + $isConfServer.VideoPortCount)){
+								$qosStatus.Video = $true
+							}else{
+								$qosStatus.Video = $false
+							}
+							
+							#Check for appshare QoS policies
+						<# 	if ($qosPolicies | Where-Object DSCP -match 18 | Where-Object SrcPortLow -match $isConfServer.AppSharingPortStart | Where-Object SrcPortHigh -match ($isConfServer.AppSharingPortStart + $isConfServer.AppSharingPortCount)){
+								$qosStatus.AppShare = $true
+							}else{
+								$qosStatus.AppShare = $false
+							} #>
+						}
+						if ($isMedServer){
+							#Check for audio QoS policy for mediation
+							if ($qosPolicies | Where-Object DSCP -match 46 | Where-Object SrcPortLow -match $isMedServer.AudioPortStart | Where-Object SrcPortHigh -match ($isMedServer.AudioPortStart + $isMedServer.AudioPortCount)){
+								$qosStatus.AudioMed = $true
+							}else{
+								$qosStatus.AudioMed = $false
+							}
+						}
+					}else{
+						#No QoS Policies found
+						$qosStatus.AudioConf = $false
+						$qosStatus.AudioMed = $false
+						$qosStatus.Video = $false
+						$qosStatus.AppShare = $false
+						$qosStatus.Signaling = $false
 					}
+					
+					$server.QoSStatus = $qosStatus
 					
 					#Get .NET Framework
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
@@ -700,7 +702,7 @@ foreach ($site in $sites){
 					$htmlTableRow += "<td class=`"warn`">$($server.DotNet)</td>`n"
 					$siteWarnItems += "<li>One or more servers .NET Framework is out-of-date. Version 4.5.2 or 4.6.2 is recommended. See `
 						<a href='https://blogs.technet.microsoft.com/nexthop/2016/02/11/on-net-framework-4-6-2-and-skype-for-businesslync-server-compatibility/' `
-						target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a>.</li>"
+						target='_blank'>.NET Framework 4.6.2 and Skype for Business/Lync Server Compatibility</a>.</li>`n"
 				}else{
 					$htmlTableRow += "<td>$($server.DotNet)</td>`n"
 				}
@@ -753,17 +755,23 @@ foreach ($site in $sites){
 				}
 				
 				#Column QoS check
-				if ($server.QoS -match $false){
+				if ($server.QoSStatus -match $false){
 					$htmlTableRow += "<td class=`"fail`">Fail</td>`n"
-					$siteFailItems += "<li>One or more servers is missing or has misconfigured QoS policies."
+					$siteFailItems += "<li>One or more servers is missing or has misconfigured QoS policies.</li>`n"
 				}else{
 					$htmlTableRow += "<td>Pass</td>`n"
+				}
+				
+				#Server QoS policy table for QoS tab
+				if ($server.QoSPolicies){
+					$htmlQoSTable += "<h2>$($server.Server)</h2>`n
+						<p>$($server.QoSPolicies | ConvertTo-Html -As Table -Fragment)</p>"
 				}
 				
 				#Column DNS check and DNS check warning
 				if ($server.DnsCheck -ne "Pass"){
 					$htmlTableRow += "<td class=`"fail`">$($server.DnsCheck)</td>`n"
-					$siteFailItems += "<li>One or more servers is missing DNS A records."
+					$siteFailItems += "<li>One or more servers is missing DNS A records.</li>`n"
 				}else{
 					$htmlTableRow += "<td>$($server.DnsCheck)</td>`n"
 				}
@@ -772,7 +780,7 @@ foreach ($site in $sites){
 				if ($server.LastUpdate -lt (Get-Date).addDays(-90)){
 					$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
 					$htmlTableRow += "<td class=`"warn`">$($server.LastUpdate)</td>`n"
-					$siteWarnItems += "<li>One or more servers has not had Windows patches applied in the last 90 days."
+					$siteWarnItems += "<li>One or more servers has not had Windows patches applied in the last 90 days.</li>`n"
 				}else{
 					$server.LastUpdate = ($server.LastUpdate).ToString('MM/dd/yyyy')
 					$htmlTableRow += "<td>$($server.LastUpdate)</td>`n"
@@ -781,10 +789,10 @@ foreach ($site in $sites){
 				#If server is unaccessible build row with blank values
 				$htmlTableRow += "<td class=`"fail`">$(($server.Server).Split(".")[0])</td>`n"
 				if (!($server.Connectivity)){
-					$siteFailItems += "<li>One or more servers are not accessible or offline.</li>"
+					$siteFailItems += "<li>One or more servers are not accessible or offline.</li>`n"
 				}elseif (!($server.Permission)){
 					$siteFailItems += "<li>One or more servers could not be queried due to permissions. `
-						Verify the user generating this report has local administrator rights on each server.</li>"
+						Verify the user generating this report has local administrator rights on each server.</li>`n"
 				}
 				$htmlTableRow += "<td></td>" #$server.Role
 				$htmlTableRow += "<td></td>" #$server.Version
@@ -799,7 +807,7 @@ foreach ($site in $sites){
 				$htmlTableRow += "<td></td>" #$server.OS
 				$htmlTableRow += "<td></td>" #$server.DotNet
 				$htmlTableRow += "<td></td>" #$server.Certs
-				$htmlTableRow += "<td></td>" #$server.QoS
+				$htmlTableRow += "<td></td>" #$server.QoSStatus
 				$htmlTableRow += "<td></td>" #$server.DnsCheck
 				$htmlTableRow += "<td></td>" #$server.LastUpdate
 			}
@@ -871,13 +879,50 @@ foreach ($site in $sites){
 			$siteHtmlInfo = $null
 		}
 		
-		#Combine site HTML body and lists
+		#Create Sites tab - Combine site HTML body and lists
 		$csSiteHtmlTab = "<div class=`"tab-content`">
 			$csSiteHtmlTab
 			$siteHtmlFail
 			$siteHtmlWarn
 			$siteHtmlInfo
-			</div>"
+			</div>`n"
+		
+		#Create Servers tab
+		$serversHtmlTab = "<div class=`"tab-content`">
+			<p>Servers</p>
+			</br>
+			</div>`n"
+
+			
+##############################################################################################################
+##                                                                                                          ##
+##                                     Process voice configurations                                         ##
+##                                                                                                          ##
+##############################################################################################################
+
+		#Create Voice tab
+		$csDialPlans = Get-CsDialPlan
+		$csNormRulesHtmlTable = $null
+		foreach ($dialPlan in $csDialPlans){
+			$csNormRulesHtmlTable += "<h3>$($dialPlan.Identity)</h3>`n
+			$($dialPlan.NormalizationRules | select Name,Description,Pattern,Translation,IsInternalExtension | ConvertTo-Html -Fragment)
+			</br>`n"
+		}
+		
+		$voiceHtmlTab = "<div class=`"tab-content`">
+			$csNormRulesHtmlTable
+			</div>`n"
+		
+		#Create QoS tab
+		$qosHtmlTab = "<div class=`"tab-content`">
+			$htmlQoSTable
+			</div>`n"
+			
+		#Create best practices tab
+		$bpHtmlTab = "<div class=`"tab-content`">
+			<p>Best Practices</p>
+			</br>
+			</div>`n"
 	}
 }
 
@@ -922,12 +967,19 @@ $HtmlHead = '<html>
 			tr:nth-child(odd){background: #b8d1f3;}
 			ul.hdd{list-style: inside; padding-left: 0px; list-style-type:square;}
 			ul{list-style: inside; padding-left: 0px; list-style-type:square; margin: -10px 0;}
-			p2{font-size: 12pt;}
+			p2{font-size: 10pt;}
 
+			.header {
+				background-color: #1e1e1e;
+				width: 100%;
+				padding: 1 15px 15px;
+				color: #f2f2f2;
+			}
+			
 			.tab-wrap {
 				-webkit-transition: 0.3s box-shadow ease;
 				transition: 0.3s box-shadow ease;
-				border-radius: 6px;
+				border-radius: 0;
 				max-width: 100%;
 				display: -webkit-box;
 				display: -webkit-flex;
@@ -939,7 +991,7 @@ $HtmlHead = '<html>
 				position: relative;
 				list-style: none;
 				background-color: #fff;
-				margin: 40px 0;
+				margin: 0 0;
 				#box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
 			}
 
@@ -1011,6 +1063,32 @@ $HtmlHead = '<html>
 				transform: translateY(0px);
 				text-shadow: 0 0 0;
 			}
+			
+			.tab:checked:nth-of-type(6) ~ .tab-content:nth-of-type(6) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+			
+			.tab:checked:nth-of-type(7) ~ .tab-content:nth-of-type(7) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
 
 			.tab:first-of-type:not(:last-of-type) + label {
 				border-top-right-radius: 0;
@@ -1028,6 +1106,7 @@ $HtmlHead = '<html>
 				background-color: #fff;
 				box-shadow: 0 -1px 0 #fff inset;
 				cursor: default;
+				color: #333;
 			}
 
 			.tab:checked + label:hover {
@@ -1041,13 +1120,13 @@ $HtmlHead = '<html>
 				cursor: pointer;
 				display: block;
 				text-decoration: none;
-				color: #333;
+				color: #f2f2f2;
 				-webkit-box-flex: 3;
 				-webkit-flex-grow: 3;
 				-ms-flex-positive: 3;
 				flex-grow: 3;
 				text-align: center;
-				background-color: #d6d6d6;
+				background-color: #1e1e1e;
 				-webkit-user-select: none;
 				-moz-user-select: none;
 				-ms-user-select: none;
@@ -1109,17 +1188,16 @@ $HtmlTabWrap = '
 
 #Active Directory
 foreach ($suffix in $($adForest.UPNSuffixes)){
-	$adSuffixes += "<li>$suffix</li>"
+	$adSuffixes += "<li>$suffix</li>`n"
 }
 
 #Build AD site HTML list
 foreach ($site in $($adForest.Sites)){
-	$adSites += "<li>$site</li>"
+	$adSites += "<li>$site</li>`n"
 }
 
 #Convert global summary tables to HTML and combine with AD body
-$adHtmlTab = "
-		
+$adHtmlTab = "`n
 		<div class=`"tab-content`">
 		<p><b>Forest Name:</b> $($adForest.Name)<br />
 		<b>Forest Mode:</b> $($adForest.ForestMode)<br />
@@ -1142,7 +1220,7 @@ if ($adGroupAdmin){
 		<ul>"
 	foreach ($adGroup in $adGroupAdmin){
 		$adHtmlTab += "<li>$($adGroup.Name) has adminCount greater than 0. `
-		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>"
+		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>`n"
 	}
 	$adHtmlTab += "</ul>"
 }
@@ -1316,14 +1394,16 @@ if ($Timing){
 }
 
 #Title generated at end of script for runtime information
-$HtmlTitle = "<h1>CsReport</h1>
+$HtmlTitle = "<div class=`"header`">
+	<h1>CsReport</h1>
 	<p2>Date: $(Get-Date)<br />
 	Author: $(whoami)<br />
 	Machine: $(hostname)<br />
-	Elapsed: $($StopWatch.Elapsed.ToString('mm\:ss'))</p2>"
+	Elapsed: $($StopWatch.Elapsed.ToString('mm\:ss'))</p2>
+	</div>"
 
 #Combine HTML sections
-$htmlReport = $HtmlHead + $HtmlTitle + $HtmlTabWrap + $adHtmlTab + $adCaHtmlTab + $globalCsHtmlTab + $csSiteHtmlTab + $HtmlTail
+$htmlReport = $HtmlHead + $HtmlTitle + $HtmlTabWrap + $adHtmlTab + $adCaHtmlTab + $globalCsHtmlTab + $csSiteHtmlTab + $serversHtmlTab + $voiceHtmlTab + $qosHtmlTab + $bpHtmlTab + $HtmlTail
 
 $htmlReport | Out-File "$env:UserProfile\Desktop\CsReport.html" -Encoding UTF8
 
