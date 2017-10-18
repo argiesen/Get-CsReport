@@ -942,7 +942,7 @@ $HtmlHead = '<html>
 		<meta charset="utf-8">
 		<title>CsReport</title>
 		<style>
-			BODY{font-family: "Segue UI"; font-size: 12pt; margin-top: 10px; margin-bottom: 60px;}
+			BODY{font-family: "Segue UI"; font-size: 12pt; margin-top: 0; margin-bottom: 60px; margin-left: 0; margin-right: 0;}
 			H1{font-size: 22px;}
 			H2{font-size: 19px; padding-top: 10px;}
 			H3{font-size: 16px; padding-top: 8px;}
