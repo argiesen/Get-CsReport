@@ -1,0 +1,430 @@
+﻿<html>
+	<head>
+		<meta charset="utf-8">
+		<title>CsReport</title>
+		<style>
+			BODY{font-family: "Segue UI"; font-size: 12pt; margin-top: 0; margin-bottom: 60px; margin-left: 0; margin-right: 0;}
+			H1{font-size: 22px;}
+			H2{font-size: 19px; padding-top: 10px;}
+			H3{font-size: 16px; padding-top: 8px;}
+			TABLE{border: 1px solid black; border-collapse: collapse; font-size: 11pt; table-layout: fixed;}
+			TABLE.csservers{table-layout: fixed;}
+			TABLE.testresults{width: 850px;}
+			TABLE.summary{text-align: center; width: auto;}
+			TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
+			TH.summary{width: 80px;}
+			TH.test{width: 120px;}
+			TH.description{width: 150px;}
+			TH.outcome{width: 50px}
+			TH.comments{width: 120px;}
+			TH.details{width: 270px;}
+			TH.reference{width: 60px;}
+			TD{border: 1px solid black; padding: 5px; vertical-align: top; word-wrap:break-word;}
+			td.pass{background: #7FFF00;}
+			td.warn{background: #FFFF00;}
+			td.fail{background: #FF0000; color: #ffffff;}
+			td.info{background: #85D4FF;}
+			tr:nth-child(even){background: #dae5f4;}
+			tr:nth-child(odd){background: #b8d1f3;}
+			ul.hdd{list-style: inside; padding-left: 0px; list-style-type:square;}
+			ul{list-style: inside; padding-left: 0px; list-style-type:square; margin: -10px 0;}
+			p2{font-size: 10pt;}
+
+			.header {
+				background-color: #1e1e1e;
+				width: 100%;
+				padding: 1 15px 15px;
+				color: #f2f2f2;
+			}
+			
+			.tab-wrap {
+				-webkit-transition: 0.3s box-shadow ease;
+				transition: 0.3s box-shadow ease;
+				border-radius: 0;
+				max-width: 100%;
+				display: -webkit-box;
+				display: -webkit-flex;
+				display: -ms-flexbox;
+				display: flex;
+				-webkit-flex-wrap: wrap;
+				-ms-flex-wrap: wrap;
+				flex-wrap: wrap;
+				position: relative;
+				list-style: none;
+				background-color: #fff;
+				margin: 0 0;
+				#box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+			}
+
+			#.tab-wrap:hover { box-shadow: 0 12px 23px rgba(0, 0, 0, 0.23), 0 10px 10px rgba(0, 0, 0, 0.19); }
+
+			.tab { display: none; }
+			
+			.tab:checked:nth-of-type(1) ~ .tab-content:nth-of-type(1) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+
+			.tab:checked:nth-of-type(2) ~ .tab-content:nth-of-type(2) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+
+			.tab:checked:nth-of-type(3) ~ .tab-content:nth-of-type(3) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+
+			.tab:checked:nth-of-type(4) ~ .tab-content:nth-of-type(4) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+
+			.tab:checked:nth-of-type(5) ~ .tab-content:nth-of-type(5) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+			
+			.tab:checked:nth-of-type(6) ~ .tab-content:nth-of-type(6) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+			
+			.tab:checked:nth-of-type(7) ~ .tab-content:nth-of-type(7) {
+				opacity: 1;
+				-webkit-transition: 0.5s opacity ease-in, 0.8s -webkit-transform ease;
+				transition: 0.5s opacity ease-in, 0.8s transform ease;
+				position: relative;
+				top: 0;
+				z-index: 100;
+				-webkit-transform: translateY(0px);
+				-ms-transform: translateY(0px);
+				transform: translateY(0px);
+				text-shadow: 0 0 0;
+			}
+
+			#.tab:first-of-type:not(:last-of-type) + label {
+				border-top-right-radius: 0;
+				border-bottom-right-radius: 0;
+			}
+
+			#.tab:not(:first-of-type):not(:last-of-type) + label { border-radius: 0; }
+
+			#.tab:last-of-type:not(:first-of-type) + label {
+				border-top-left-radius: 0;
+				border-bottom-left-radius: 0;
+			}
+
+			.tab:checked + label {
+				background-color: #fff;
+				box-shadow: 0 -1px 0 #fff inset;
+				cursor: default;
+				color: #333;
+			}
+
+			.tab:checked + label:hover {
+				box-shadow: 0 -1px 0 #fff inset;
+				background-color: #fff;
+			}
+
+			.tab + label {
+				box-shadow: 0 -1px 0 #eee inset;
+				border-radius: 6px 6px 0 0;
+				cursor: pointer;
+				display: block;
+				text-decoration: none;
+				color: #f2f2f2;
+				-webkit-box-flex: 3;
+				-webkit-flex-grow: 3;
+				-ms-flex-positive: 3;
+				flex-grow: 3;
+				text-align: center;
+				background-color: #1e1e1e;
+				-webkit-user-select: none;
+				-moz-user-select: none;
+				-ms-user-select: none;
+				user-select: none;
+				text-align: center;
+				-webkit-transition: 0.3s background-color ease, 0.3s box-shadow ease;
+				transition: 0.3s background-color ease, 0.3s box-shadow ease;
+				height: 50px;
+				box-sizing: border-box;
+				padding: 15px;
+				font-weight: bold;
+				border-top-left-radius: 0;
+				border-bottom-left-radius: 0;
+				border-top-right-radius: 0;
+				border-bottom-right-radius: 0;
+				border-radius: 0;
+			}
+
+			.tab + label:hover {
+				background-color: #f9f9f9;
+				box-shadow: 0 1px 0 #f4f4f4 inset;
+			}
+
+			.tab-content {
+				padding: 10px 25px;
+				background-color: transparent;
+				position: absolute;
+				width: 100%;
+				z-index: -1;
+				opacity: 0;
+				left: 0;
+				-webkit-transform: translateY(-3px);
+				-ms-transform: translateY(-3px);
+				transform: translateY(-3px);
+				border-radius: 6px;
+			}
+		</style>
+	</head>
+	<body><div class="header">
+	<h1>CsReport</h1>
+	<p2>Date: 10/18/2017 16:45:10<br />
+	Author: lab\agiesenx<br />
+	Machine: cs15fe1<br />
+	Elapsed: 00:38</p2>
+	</div>
+		<!-- https://www.cssscript.com/pure-css-tabs-component-with-transitions-between-variable-heights/ -->
+		<div class="tab-wrap">
+		<input type="radio" id="tab1" name="tabGroup1" class="tab" checked>
+		<label for="tab1">Active Directory</label>
+
+		<input type="radio" id="tab2" name="tabGroup1" class="tab">
+		<label for="tab2">Skype for Business</label>
+
+		<input type="radio" id="tab3" name="tabGroup1" class="tab">
+		<label for="tab3">Sites</label>
+
+		<input type="radio" id="tab4" name="tabGroup1" class="tab">
+		<label for="tab4">Servers</label>
+
+		<input type="radio" id="tab5" name="tabGroup1" class="tab">
+		<label for="tab5">Voice</label>
+		
+		<input type="radio" id="tab6" name="tabGroup1" class="tab">
+		<label for="tab6">QoS</label>
+		
+		<input type="radio" id="tab7" name="tabGroup1" class="tab">
+		<label for="tab7">Best Practices</label>
+
+		<div class="tab-content">
+		<p><b>Forest Name:</b> lab.ceriumnetworks.com<br />
+		<b>Forest Mode:</b> Windows2012R2Forest<br />
+		<b>Domain Name:</b> lab.ceriumnetworks.com (lab)<br />
+		<b>Domain Mode:</b> Windows2012R2Domain<br />
+		<b>UPN Suffixes:</b>
+		<ul>
+		
+		</ul>
+		</p>
+		<p><b>Sites:</b>
+		<ul>
+		<li>Spokane</li>
+
+		</ul>
+		</p><h3>Domain Controllers</h3>
+		<p><table> <colgroup><col/><col/><col/><col/><col/><col/><col/><col/></colgroup> <tr><th>Site</th><th>HostName</th><th>IP Address</th><th>OS</th><th>OS Version</th><th>Roles</th><th>Global Catalog</th><th>Read Only</th></tr> <tr><td>Spokane</td><td>dc1.lab.ceriumnetworks.com</td><td>10.10.221.90</td><td>Server 2012 R2 Standard</td><td>6.3 (9600)</td><td>PDCEmulator, RIDMaster, InfrastructureMaster</td><td>True</td><td>False</td></tr> <tr><td>Spokane</td><td>dc2.lab.ceriumnetworks.com</td><td>10.10.221.91</td><td>Server 2012 R2 Standard</td><td>6.3 (9600)</td><td>SchemaMaster, DomainNamingMaster</td><td>True</td><td>False</td></tr> </table></p><h3>Certificate Authorities</h3>
+		<table>
+		<tr>
+		<th>Common Name</th>
+		<th>Server</th>
+		<th>Online</th>
+		</tr>
+		<tr>
+<td>LAB.CERIUMNETWORKS.COM CA
+</td>
+<td>dc1.lab.ceriumnetworks.com
+</td>
+<td>True</td>
+
+		</table>
+		
+		</div>
+<div class="tab-content">
+	<p><b>Active CMS:</b> cs15fe1.lab.ceriumnetworks.com
+
+	<br /><b>SIP Domains:</b>
+		<ul>
+		<li>lab.ceriumnetworks.com (Default)</li>
+
+		</ul></p>
+	<p><b>Meet URLs:</b>
+		<ul>
+		<li>https://meet.lab.ceriumnetworks.com (lab.ceriumnetworks.com)</li>
+
+		</ul></p>
+	<p><b>Dailin URLs:</b>
+		<ul>
+		<li>https://dialin.lab.ceriumnetworks.com (*)</li>
+
+		</ul></p>
+	<p><b>Admin URL:</b> https://csadmin.lab.ceriumnetworks.com</p>
+	
+
+	<p><b>Summary:</b>
+	<table> <colgroup><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/></colgroup> <tr><th>Sites</th><th>Users</th><th>Address Mismatch</th><th>AD Disabled</th><th>Admin Users</th><th>Voice Users</th><th>RCC Users</th><th>Analog</th><th>Common Area</th><th>RGS</th><th>Pools</th><th>Gateways</th></tr> <tr><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>2</td><td>0</td></tr> </table></p>
+	
+	
+	
+	</div>
+<div class="tab-content">
+			<h3>Spokane</h3>
+			<p><table> <colgroup><col/><col/><col/><col/><col/></colgroup> <tr><th>Users</th><th>Voice Users</th><th>RCC Users</th><th>Pools</th><th>Gateways</th></tr> <tr><td>0</td><td>0</td><td>0</td><td>2</td><td>0</td></tr> </table></p>
+			<p>
+			<table class="csservers">
+			<tr>
+			<th width="100px">Pool</th>
+			<th width="100px">Server</th>
+			<th width="60px">Role</th>
+			<th width="80px">Version</th>
+			<th width="100px">Hardware</th>
+			<th width="70px">VMware Tools</th>
+			<th width="40px">Sockets</th>
+			<th width="40px">Cores</th>
+			<th width="40px">Memory</th>
+			<th width="130px">HDD</th>
+			<th width="95px">Power Plan</th>
+			<th width="40px">Uptime</th>
+			<th width="120px">OS</th>
+			<th width="30px">.NET</th>
+			<th width="30px">Certs</th>
+			<th width="30px">QoS</th>
+			<th width="30px">DNS</th>
+			<th width="50px">Last Update</th>
+			</tr>
+			<tr>
+<td><b>cs15fe1</b></td>
+<td>cs15fe1</td>
+<td>Front End</td>
+<td>6.0.9319.281<br />(CU5 - 05/17/2017)</td>
+<td>VMware</td>
+<td>Up-to-date</td>
+<td>1</td>
+<td class="warn">2</td>
+<td class="warn">8.00GB</td>
+<td><ul.hdd style='margin: 0;'><li>C: 75.02GB/119.51GB</li>
+</ul.hdd></td>
+<td>High performance</td>
+<td>110</td>
+<td>Server 2016 Standard</td>
+<td>4.6.2</td>
+<td>Pass</td>
+<td>Pass</td>
+<td>Pass</td>
+<td>10/10/2017</td>
+</tr>
+
+				
+<tr>
+<td><b>cs15fe2</b></td>
+<td>cs15fe2</td>
+<td>Front End</td>
+<td>6.0.9319.281<br />(CU5 - 05/17/2017)</td>
+<td>VMware</td>
+<td>Up-to-date</td>
+<td>1</td>
+<td class="warn">2</td>
+<td class="warn">8.00GB</td>
+<td><ul.hdd style='margin: 0;'><li>C: 74.98GB/119.66GB</li>
+</ul.hdd></td>
+<td>High performance</td>
+<td>110</td>
+<td>Server 2012 R2 Standard</td>
+<td>4.6.2</td>
+<td>Pass</td>
+<td>Pass</td>
+<td>Pass</td>
+<td>10/11/2017</td>
+</tr>
+
+				
+
+			</table>
+			</p>
+			
+			<p>Warning Items</p>
+				<ul>
+				<li>One or more servers total cores is less than 4. See 
+						<a href='https://github.com/argiesen/Get-CsReport/wiki/Server-Tests#sockets-equal-to-corescores-less-than-4' 
+						target='_blank'>Sockets equal to cores/Cores less than 4</a>.</li>
+ <li>RAM is less than 16GB.</li>
+				</ul>
+			
+			</div>
+<div class="tab-content">
+			<p>Servers</p>
+			</br>
+			</div>
+<div class="tab-content">
+			<h3>Global</h3>
+
+			<table> <colgroup><col/><col/><col/><col/><col/></colgroup> <tr><th>Name</th><th>Description</th><th>Pattern</th><th>Translation</th><th>IsInternalExtension</th></tr> <tr><td>US-National</td><td>National number normalization for United States</td><td>^1?([2-9]\d\d[2-9]\d{6})\d*(\D+\d+)?$</td><td>+1$1</td><td>False</td></tr> <tr><td>US-Service</td><td>Service number normalization for United States</td><td>^([2-9]11)$</td><td>$1</td><td>False</td></tr> <tr><td>US-International</td><td>International number normalization for United States</td><td>^011(1|7|2[07]|3[0-46]|39\d|4[013-9]|5[1-8]|6[0-6]|8[1246]|9[0-58]|2[1235689]\d|24[013-9]|242\d|3[578]\d|42|5[09]\d|6[789]\d|8[035789]\d|9[679]\d)(?:0)?(\d{6,14})(\D+\d+)?$</td><td>+$1$2</td><td>False</td></tr> </table>
+			</br>
+<h3>Tag:US</h3>
+
+			<table> <colgroup><col/><col/><col/><col/><col/></colgroup> <tr><th>Name</th><th>Description</th><th>Pattern</th><th>Translation</th><th>IsInternalExtension</th></tr> <tr><td>US-National</td><td>National number normalization for United States</td><td>^1?([2-9]\d\d[2-9]\d{6})\d*(\D+\d+)?$</td><td>+1$1</td><td>False</td></tr> <tr><td>US-Service</td><td>Service number normalization for United States</td><td>^([2-9]11)$</td><td>$1</td><td>False</td></tr> <tr><td>US-International</td><td>International number normalization for United States</td><td>^011(1|7|2[07]|3[0-46]|39\d|4[013-9]|5[1-8]|6[0-6]|8[1246]|9[0-58]|2[1235689]\d|24[013-9]|242\d|3[578]\d|42|5[09]\d|6[789]\d|8[035789]\d|9[679]\d)(?:0)?(\d{6,14})(\D+\d+)?$</td><td>+$1$2</td><td>False</td></tr> </table>
+			</br>
+
+			</div>
+<div class="tab-content">
+			<h2>cs15fe1.lab.ceriumnetworks.com</h2>
+
+						<p><table> <colgroup><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/></colgroup> <tr><th>Name</th><th>Version</th><th>AppName</th><th>Protocol</th><th>SrcIP</th><th>SrcIPPrefix</th><th>SrcPortLow</th><th>SrcPortHigh</th><th>DstIP</th><th>DstIPPrefix</th><th>DstPortLow</th><th>DstPortHigh</th><th>DSCP</th></tr> <tr><td>CSServerAppSrvAudioQoS</td><td>2.0</td><td>OcsAppServerHost.exe</td><td>3</td><td></td><td></td><td>49152</td><td>57500</td><td></td><td></td><td></td><td></td><td>46</td></tr> <tr><td>CSServerAppSrvVideoQoS</td><td>2.0</td><td>OcsAppServerHost.exe</td><td>3</td><td></td><td></td><td>57501</td><td>65535</td><td></td><td></td><td></td><td></td><td>34</td></tr> <tr><td>CSServerConfAppSharingQoS</td><td>2.0</td><td>ASMCUSvc.exe</td><td>3</td><td></td><td></td><td>40803</td><td>49151</td><td></td><td></td><td></td><td></td><td>18</td></tr> <tr><td>CSServerConfAudioQoS</td><td>2.0</td><td>AVMCUSvc.exe</td><td>3</td><td></td><td></td><td>49152</td><td>57500</td><td></td><td></td><td></td><td></td><td>46</td></tr> <tr><td>CSServerConfVideoQoS</td><td>2.0</td><td>AVMCUSvc.exe</td><td>3</td><td></td><td></td><td>57501</td><td>65535</td><td></td><td></td><td></td><td></td><td>34</td></tr> <tr><td>CSServerMedAudioQoS</td><td>2.0</td><td>MediationServerSvc.exe</td><td>3</td><td></td><td></td><td>49152</td><td>57500</td><td></td><td></td><td></td><td></td><td>46</td></tr> </table></p><h2>cs15fe2.lab.ceriumnetworks.com</h2>
+
+						<p><table> <colgroup><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/><col/></colgroup> <tr><th>Name</th><th>Version</th><th>AppName</th><th>Protocol</th><th>SrcIP</th><th>SrcIPPrefix</th><th>SrcPortLow</th><th>SrcPortHigh</th><th>DstIP</th><th>DstIPPrefix</th><th>DstPortLow</th><th>DstPortHigh</th><th>DSCP</th></tr> <tr><td>CSServerAppSrvAudioQoS</td><td>2.0</td><td>OcsAppServerHost.exe</td><td>3</td><td></td><td></td><td>49152</td><td>57500</td><td></td><td></td><td></td><td></td><td>46</td></tr> <tr><td>CSServerAppSrvVideoQoS</td><td>2.0</td><td>OcsAppServerHost.exe</td><td>3</td><td></td><td></td><td>57501</td><td>65535</td><td></td><td></td><td></td><td></td><td>34</td></tr> <tr><td>CSServerConfAppSharingQoS</td><td>2.0</td><td>ASMCUSvc.exe</td><td>3</td><td></td><td></td><td>40803</td><td>49151</td><td></td><td></td><td></td><td></td><td>18</td></tr> <tr><td>CSServerConfAudioQoS</td><td>2.0</td><td>AVMCUSvc.exe</td><td>3</td><td></td><td></td><td>49152</td><td>57500</td><td></td><td></td><td></td><td></td><td>46</td></tr> <tr><td>CSServerConfVideoQoS</td><td>2.0</td><td>AVMCUSvc.exe</td><td>3</td><td></td><td></td><td>57501</td><td>65535</td><td></td><td></td><td></td><td></td><td>34</td></tr> <tr><td>CSServerMedAudioQoS</td><td>2.0</td><td>MediationServerSvc.exe</td><td>3</td><td></td><td></td><td>49152</td><td>57500</td><td></td><td></td><td></td><td></td><td>46</td></tr> </table></p>
+			</div>
+<div class="tab-content">
+			<p>Best Practices</p>
+			</br>
+			</div>
+</body>
+	</html>
