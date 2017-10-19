@@ -841,7 +841,7 @@ foreach ($site in $sites){
 			<th width=`"40px`">Memory</th>
 			<th width=`"130px`">HDD</th>
 			<th width=`"95px`">Power Plan</th>
-			<th width=`"47px`">Uptime (H)</th>
+			<th width=`"45px`">Uptime (H)</th>
 			<th width=`"120px`">OS</th>
 			<th width=`"30px`">.NET</th>
 			<th width=`"30px`">Certs</th>
@@ -902,16 +902,59 @@ foreach ($site in $sites){
 
 		#Create Voice tab
 		$csDialPlans = Get-CsDialPlan
-		$csNormRulesHtmlTable = $null
+		$csDialPlansHtmlTable = $null
 		foreach ($dialPlan in $csDialPlans){
-			$csNormRulesHtmlTable += "<h3>$($dialPlan.Identity)</h3>`n
+			$csDialPlansHtmlTable += `
+			"<h3>$($dialPlan.Identity)</h3>`n
+			<p>Simple name: $($dialPlan.SimpleName)</br>
+			Description: $($dialPlan.Description)</br>
+			Dial-in conferencing region: $($dialPlan.DialinConferenceRegion)</br>
+			External access prefix: $($dialPlan.ExternalAccessPrefix)</p>
 			$($dialPlan.NormalizationRules | select Name,Description,Pattern,Translation,IsInternalExtension | ConvertTo-Html -Fragment)
 			</br>`n"
 		}
 		
-		$voiceHtmlTab = "<div class=`"tab-content`">
-			$csNormRulesHtmlTable
+		$csVoicePolicies = Get-CsVoicePolicy
+		$csVoicePoliciesHtmlTable = $null
+		foreach ($voicePolicy in $csVoicePolicies){
+			$csVoicePoliciesHtmlTable += `
+			"<h3>$($voicePolicy.Identity)</h3>`n
+			<p>Description: $($voicePolicy.Description)
+			
+			</p>
+			</br>`n"
+		}
+		
+		$voiceHtmlTab = `
+			"<div class=`"tab-content`">
+				<div class=`"tab-wrap`">
+					<input type=`"radio`" id=`"voicetab1`" name=`"tabGroup2`" class=`"tab`" checked>
+					<label for=`"voicetab1`">Dial Plans</label>
+
+					<input type=`"radio`" id=`"voicetab2`" name=`"tabGroup2`" class=`"tab`">
+					<label for=`"voicetab2`">Voice Policies</label>
+					
+					<input type=`"radio`" id=`"voicetab3`" name=`"tabGroup2`" class=`"tab`">
+					<label for=`"voicetab3`">PSTN Usages</label>
+
+					<input type=`"radio`" id=`"voicetab4`" name=`"tabGroup2`" class=`"tab`">
+					<label for=`"voicetab4`">Routes</label>
+					
+					<input type=`"radio`" id=`"voicetab5`" name=`"tabGroup2`" class=`"tab`">
+					<label for=`"voicetab5`">Trunk Configuration</label>
+					
+					<div class=`"tab-content`">
+						$csDialPlansHtmlTable
+					</div>
+				</div>
 			</div>`n"
+
+
+##############################################################################################################
+##                                                                                                          ##
+##                                     Process QoS configurations                                           ##
+##                                                                                                          ##
+##############################################################################################################
 		
 		#Create QoS tab
 		$qosHtmlTab = "<div class=`"tab-content`">
