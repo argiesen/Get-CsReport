@@ -901,50 +901,135 @@ foreach ($site in $sites){
 ##############################################################################################################
 
 		#Create Voice tab
+		#Process dial plans
 		$csDialPlans = Get-CsDialPlan
 		$csDialPlansHtmlTable = $null
 		foreach ($dialPlan in $csDialPlans){
 			$csDialPlansHtmlTable += `
 			"<h3>$($dialPlan.Identity)</h3>`n
-			<p>Simple name: $($dialPlan.SimpleName)</br>
-			Description: $($dialPlan.Description)</br>
-			Dial-in conferencing region: $($dialPlan.DialinConferenceRegion)</br>
-			External access prefix: $($dialPlan.ExternalAccessPrefix)</p>
+			<table class=`"csservers`">`n
+			<tr><td>Simple name:</td><td>$($dialPlan.SimpleName)</td></tr>`n
+			<tr><td>Description:</td><td>$($dialPlan.Description)</td></tr>`n
+			<tr><td>Dial-in conferencing region:</td><td>$($dialPlan.DialinConferenceRegion)</td></tr>`n
+			<tr><td>External access prefix:</td><td>$($dialPlan.ExternalAccessPrefix)</td></tr>`n
+			</table>
+			</br>
+			<b>Normalization Rules</b></br>
 			$($dialPlan.NormalizationRules | select Name,Description,Pattern,Translation,IsInternalExtension | ConvertTo-Html -Fragment)
 			</br>`n"
 		}
 		
+		#Process voice policies
 		$csVoicePolicies = Get-CsVoicePolicy
 		$csVoicePoliciesHtmlTable = $null
 		foreach ($voicePolicy in $csVoicePolicies){
+			$csVoicePolicyUsagelist = $null
+			if ($voicePolicy.PstnUsages -match "[a-z|0-9]"){
+				foreach ($usage in $voicePolicy.PstnUsages){
+					$csVoicePolicyUsagelist += "<li>$usage</li>`n"
+				}
+			}else{
+				$csVoicePolicyUsagelist += "<li>No usages</li>`n"
+			}
 			$csVoicePoliciesHtmlTable += `
-			"<h3>$($voicePolicy.Identity)</h3>`n
-			<p>Description: $($voicePolicy.Description)
-			
-			</p>
-			</br>`n"
+				"<h3>$($voicePolicy.Identity)</h3>`n
+				<table class=`"csservers`">`n
+				<tr>
+				<th width=`"200`">Parameter</th>
+				<th width=`"200`">Value</th>
+				</tr>"
+			$csVoicePoliciesHtmlTable += "<tr><td>Description:</td><td>$($voicePolicy.Description)</td></tr>`n
+				<tr><td>Enable call forwarding:</td><td>"
+			if ($voicePolicy.AllowCallForwarding -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowCallForwarding)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowCallForwarding)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>Enable delegation:</td><td>"
+			if ($voicePolicy.EnableDelegation -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableDelegation)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableDelegation)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>Enable call transfer:</td><td>"
+			if ($voicePolicy.EnableCallTransfer -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableCallTransfer)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableCallTransfer)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>Enable call park:</td><td>"
+			if ($voicePolicy.EnableCallPark -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableCallPark)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableCallPark)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>Enable simultaneous ring:</td><td>"
+			if ($voicePolicy.AllowSimulRing -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowSimulRing)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowSimulRing)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>Call forwarding and simultaneous ringing PSTN usages:</td><td>"
+			if ($voicePolicy.CallForwardingSimulRingUsageType -ne "VoicePolicyUsage"){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.CallForwardingSimulRingUsageType)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.CallForwardingSimulRingUsageType)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>Enable team call:</td><td>"
+			if ($voicePolicy.EnableTeamCall -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableTeamCall)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableTeamCall)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>Enable PSTN reroute:</td><td>"
+			if ($voicePolicy.AllowPSTNReRouting -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowPSTNReRouting)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowPSTNReRouting)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>Enable bandwidth policy override:</td><td>"
+			if ($voicePolicy.EnableBWPolicyOverride -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableBWPolicyOverride)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableBWPolicyOverride)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>Enable malicious call tracing:</td><td>"
+			if ($voicePolicy.EnableMaliciousCallTracing -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableMaliciousCallTracing)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableMaliciousCallTracing)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>Enable busy options:</td><td>"
+			if ($voicePolicy.EnableBusyOptions -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableBusyOptions)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableBusyOptions)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>EnableVoicemailEscapeTimer:</td><td>"
+			if ($voicePolicy.EnableVoicemailEscapeTimer -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableVoicemailEscapeTimer)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableVoicemailEscapeTimer)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				<tr><td>>PSTN VoicemailEscapeTimer:</td><td>"
+			if ($voicePolicy.PSTNVoicemailEscapeTimer -ne "4000"){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.PSTNVoicemailEscapeTimer)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.PSTNVoicemailEscapeTimer)"}
+			$csVoicePoliciesHtmlTable += "</td></tr>`n
+				</table>
+				</br>
+				<b>PSTN Usages</b></br>
+				<ol>
+					$csVoicePolicyUsagelist
+				</ol>
+				</br>`n"
 		}
+		
+		
+		#Process routes
+		$csPstnUsages = Get-CsPstnUsage
+		$csVoiceRoutes = Get-CsVoiceRoute
+		$csVoiceRouteList = $null
+		foreach ($usage in $csPstnUsages){
+			$csVoiceRouteList += "<h3>$usage</h3>`n"
+			
+			$csVoiceRouteList += ($csVoiceRoutes | where PstnUsages -match $usage | select Name,Description,Priority,PstnUsages,PstnGatewayList,NumberPattern,SupressCallerId,AlternateCallerId | ConvertTo-Html -Fragment)
+		}
+		
+		
+		#Process PSTN usages
+		
+		
+		
 		
 		$voiceHtmlTab = `
 			"<div class=`"tab-content`">
 				<div class=`"tab-wrap`">
 					<input type=`"radio`" id=`"voicetab1`" name=`"tabGroup2`" class=`"tab`" checked>
-					<label for=`"voicetab1`">Dial Plans</label>
+					<label for=`"voicetab1`">Dial Plan</label>
 
 					<input type=`"radio`" id=`"voicetab2`" name=`"tabGroup2`" class=`"tab`">
-					<label for=`"voicetab2`">Voice Policies</label>
+					<label for=`"voicetab2`">Voice Policy</label>
 					
 					<input type=`"radio`" id=`"voicetab3`" name=`"tabGroup2`" class=`"tab`">
-					<label for=`"voicetab3`">PSTN Usages</label>
+					<label for=`"voicetab3`">Route</label>
 
 					<input type=`"radio`" id=`"voicetab4`" name=`"tabGroup2`" class=`"tab`">
-					<label for=`"voicetab4`">Routes</label>
+					<label for=`"voicetab4`">PSTN Usage</label>
 					
 					<input type=`"radio`" id=`"voicetab5`" name=`"tabGroup2`" class=`"tab`">
 					<label for=`"voicetab5`">Trunk Configuration</label>
 					
 					<div class=`"tab-content`">
 						$csDialPlansHtmlTable
+					</div>
+					<div class=`"tab-content`">
+						$csVoicePoliciesHtmlTable
+					</div>
+					<div class=`"tab-content`">
+						$csVoiceRouteList
 					</div>
 				</div>
 			</div>`n"
