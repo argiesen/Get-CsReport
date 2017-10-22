@@ -94,7 +94,7 @@ try {
 
 ##############################################################################################################
 ##                                                                                                          ##
-##                        Collect global info for AD, CA and Skype4B summaries                              ##
+##                                Collect global info for AD and CA summaries                               ##
 ##                                                                                                          ##
 ##############################################################################################################
 
@@ -179,6 +179,13 @@ $StepStopWatch.Stop()
 if ($Timing){
 	Write-Output "AD collect: $($StepStopWatch.Elapsed.ToString('dd\.hh\:mm\:ss'))"
 }
+
+
+##############################################################################################################
+##                                                                                                          ##
+##                               Collect global info for Skype4B summary                                    ##
+##                                                                                                          ##
+##############################################################################################################
 
 #Start CS collect time
 $StepStopWatch = [system.diagnostics.stopwatch]::startNew()
@@ -939,44 +946,57 @@ foreach ($site in $sites){
 				<th width=`"200`">Value</th>
 				</tr>"
 			$csVoicePoliciesHtmlTable += "<tr><td>Description:</td><td>$($voicePolicy.Description)</td></tr>`n
-				<tr><td>Enable call forwarding:</td><td>"
-			if ($voicePolicy.AllowCallForwarding -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowCallForwarding)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowCallForwarding)"}
+				<tr><td>Enable call forwarding</td><td>"
+			if ($voicePolicy.AllowCallForwarding -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowCallForwarding)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowCallForwarding)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable delegation:</td><td>"
-			if ($voicePolicy.EnableDelegation -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableDelegation)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableDelegation)"}
+				<tr><td>Enable delegation</td><td>"
+			if ($voicePolicy.EnableDelegation -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableDelegation)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableDelegation)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable call transfer:</td><td>"
-			if ($voicePolicy.EnableCallTransfer -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableCallTransfer)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableCallTransfer)"}
+				<tr><td>Enable call transfer</td><td>"
+			if ($voicePolicy.EnableCallTransfer -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableCallTransfer)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableCallTransfer)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable call park:</td><td>"
-			if ($voicePolicy.EnableCallPark -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableCallPark)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableCallPark)"}
+				<tr><td>Enable call park</td><td>"
+			if ($voicePolicy.EnableCallPark -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableCallPark)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableCallPark)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable simultaneous ring:</td><td>"
-			if ($voicePolicy.AllowSimulRing -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowSimulRing)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowSimulRing)"}
+				<tr><td>Enable simultaneous ring</td><td>"
+			if ($voicePolicy.AllowSimulRing -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowSimulRing)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowSimulRing)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Call forwarding and simultaneous ringing PSTN usages:</td><td>"
-			if ($voicePolicy.CallForwardingSimulRingUsageType -ne "VoicePolicyUsage"){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.CallForwardingSimulRingUsageType)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.CallForwardingSimulRingUsageType)"}
+				<tr><td>Call forwarding and simultaneous ringing PSTN usages</td><td>"
+			if ($voicePolicy.CallForwardingSimulRingUsageType -ne "VoicePolicyUsage"){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.CallForwardingSimulRingUsageType)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.CallForwardingSimulRingUsageType)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable team call:</td><td>"
-			if ($voicePolicy.EnableTeamCall -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableTeamCall)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableTeamCall)"}
+				<tr><td>Enable team call</td><td>"
+			if ($voicePolicy.EnableTeamCall -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableTeamCall)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableTeamCall)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable PSTN reroute:</td><td>"
-			if ($voicePolicy.AllowPSTNReRouting -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowPSTNReRouting)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowPSTNReRouting)"}
+				<tr><td>Enable PSTN reroute</td><td>"
+			if ($voicePolicy.AllowPSTNReRouting -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowPSTNReRouting)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowPSTNReRouting)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable bandwidth policy override:</td><td>"
-			if ($voicePolicy.EnableBWPolicyOverride -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableBWPolicyOverride)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableBWPolicyOverride)"}
+				<tr><td>Enable bandwidth policy override</td><td>"
+			if ($voicePolicy.EnableBWPolicyOverride -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableBWPolicyOverride)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableBWPolicyOverride)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable malicious call tracing:</td><td>"
-			if ($voicePolicy.EnableMaliciousCallTracing -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableMaliciousCallTracing)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableMaliciousCallTracing)"}
+				<tr><td>Enable malicious call tracing</td><td>"
+			if ($voicePolicy.EnableMaliciousCallTracing -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableMaliciousCallTracing)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableMaliciousCallTracing)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable busy options:</td><td>"
-			if ($voicePolicy.EnableBusyOptions -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableBusyOptions)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableBusyOptions)"}
+				<tr><td>Enable busy options</td><td>"
+			if ($voicePolicy.EnableBusyOptions -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableBusyOptions)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableBusyOptions)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>EnableVoicemailEscapeTimer:</td><td>"
-			if ($voicePolicy.EnableVoicemailEscapeTimer -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableVoicemailEscapeTimer)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableVoicemailEscapeTimer)"}
+				<tr><td>EnableVoicemailEscapeTimer</td><td>"
+			if ($voicePolicy.EnableVoicemailEscapeTimer -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableVoicemailEscapeTimer)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableVoicemailEscapeTimer)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>>PSTN VoicemailEscapeTimer:</td><td>"
-			if ($voicePolicy.PSTNVoicemailEscapeTimer -ne "4000"){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.PSTNVoicemailEscapeTimer)</b>"}else{$csVoicePoliciesHtmlTable += "$($voicePolicy.PSTNVoicemailEscapeTimer)"}
+				<tr><td>PSTNVoicemailEscapeTimer</td><td>"
+			if ($voicePolicy.PSTNVoicemailEscapeTimer -ne "4000"){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.PSTNVoicemailEscapeTimer)</b>"}
+				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.PSTNVoicemailEscapeTimer)"}
 			$csVoicePoliciesHtmlTable += "</td></tr>`n
 				</table>
 				</br>
@@ -991,16 +1011,16 @@ foreach ($site in $sites){
 		#Process routes
 		$csPstnUsages = Get-CsPstnUsage
 		$csVoiceRoutes = Get-CsVoiceRoute
-		$csVoiceRouteList = $null
-		foreach ($usage in $csPstnUsages){
-			$csVoiceRouteList += "<h3>$usage</h3>`n"
-			
-			$csVoiceRouteList += ($csVoiceRoutes | where PstnUsages -match $usage | select Name,Description,Priority,PstnUsages,PstnGatewayList,NumberPattern,SupressCallerId,AlternateCallerId | ConvertTo-Html -Fragment)
-		}
+		$csVoiceRoutesList = ($csVoiceRoutes | select Name,Description,Priority,PstnUsages,PstnGatewayList,NumberPattern,SupressCallerId,AlternateCallerId | ConvertTo-Html -Fragment)
 		
 		
 		#Process PSTN usages
-		
+		$csPstnUsagesList = $null
+		foreach ($usage in $csPstnUsages){
+			$csPstnUsagesList += "<h3>$usage</h3>`n"
+			
+			$csPstnUsagesList += ($csVoiceRoutes | where PstnUsages -match $usage | select Name,Description,Priority | ConvertTo-Html -Fragment)
+		}
 		
 		
 		
@@ -1029,7 +1049,10 @@ foreach ($site in $sites){
 						$csVoicePoliciesHtmlTable
 					</div>
 					<div class=`"tab-content`">
-						$csVoiceRouteList
+						$csVoiceRoutesList
+					</div>
+					<div class=`"tab-content`">
+						$csPstnUsagesList
 					</div>
 				</div>
 			</div>`n"
