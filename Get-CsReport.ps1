@@ -891,32 +891,32 @@ $StepStopWatch = [system.diagnostics.stopwatch]::startNew()
 #Header
 $HtmlHead = "<html>
 	<style>
-	BODY{font-family: Calibri; font-size: 11pt; margin-top: 10px; margin-bottom: 60px;}
-	H1{font-size: 22px;}
-	H2{font-size: 19px; padding-top: 10px;}
-	H3{font-size: 17px; padding-top: 8px;}
-	TABLE{border: 1px solid black; border-collapse: collapse; font-size: 9pt; table-layout: fixed;}
-	TABLE.csservers{table-layout: fixed;}
-	TABLE.testresults{width: 850px;}
-	TABLE.summary{text-align: center; width: auto;}
-	TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
-	TH.summary{width: 80px;}
-	TH.test{width: 120px;}
-	TH.description{width: 150px;}
-	TH.outcome{width: 50px}
-	TH.comments{width: 120px;}
-	TH.details{width: 270px;}
-	TH.reference{width: 60px;}
-	TD{border: 1px solid black; padding: 5px; vertical-align: top; word-wrap:break-word;}
-	td.pass{background: #7FFF00;}
-	td.warn{background: #FFFF00;}
-	td.fail{background: #FF0000; color: #ffffff;}
-	td.info{background: #85D4FF;}
-	tr:nth-child(even){background: #dae5f4;}
-	tr:nth-child(odd){background: #b8d1f3;}
-	ul.hdd{list-style: inside; padding-left: 0px; list-style-type:square;}
-	ul{list-style: inside; padding-left: 10px; list-style-type:square; margin: -10px 0;}
-	p2{font-size: 9pt;}
+		BODY{font-family: Calibri; font-size: 11pt; margin-top: 10px; margin-bottom: 60px;}
+		H1{font-size: 22px;}
+		H2{font-size: 19px; padding-top: 10px;}
+		H3{font-size: 17px; padding-top: 8px;}
+		TABLE{border: 1px solid black; border-collapse: collapse; font-size: 9pt; table-layout: fixed;}
+		TABLE.csservers{table-layout: fixed;}
+		TABLE.testresults{width: 850px;}
+		TABLE.summary{text-align: center; width: auto;}
+		TH{border: 1px solid black; background: #dddddd; padding: 5px; color: #000000;}
+		TH.summary{width: 80px;}
+		TH.test{width: 120px;}
+		TH.description{width: 150px;}
+		TH.outcome{width: 50px}
+		TH.comments{width: 120px;}
+		TH.details{width: 270px;}
+		TH.reference{width: 60px;}
+		TD{border: 1px solid black; padding: 5px; vertical-align: top; word-wrap:break-word;}
+		td.pass{background: #7FFF00;}
+		td.warn{background: #FFFF00;}
+		td.fail{background: #FF0000; color: #ffffff;}
+		td.info{background: #85D4FF;}
+		tr:nth-child(even){background: #dae5f4;}
+		tr:nth-child(odd){background: #b8d1f3;}
+		ul.hdd{list-style: inside; padding-left: 0px; list-style-type:square;}
+		ul{list-style: inside; padding-left: 10px; list-style-type:square; margin: -10px 0;}
+		p2{font-size: 9pt;}
 	</style>
 	<body>"
 
