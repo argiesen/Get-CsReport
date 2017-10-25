@@ -218,7 +218,8 @@ $commonAreaPhones = Get-CsCommonAreaPhone | Where-Object Enabled -eq $true
 $rgsWorkflows = Get-CsRgsWorkflow | Where-Object Active -eq $true
 
 #Collect CS pools
-$csPools = Get-CsPool | Where-Object Services -match "Registrar"
+#$csPools = Get-CsPool | Where-Object Services -match "Registrar"
+$csPools = Get-CsPool | Select-Object *,@{l='Name';e={$_.Fqdn}},Users,"Voice Users","RCC Users",ConfMediaPorts,MedMediaPorts,isConfServer,isMedServer,isQoSHtmlProcessed
 
 #Collect CS gateways
 $csGateways = Get-CsService -PstnGateway
@@ -237,7 +238,8 @@ $csSummary.AdminUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandProper
 
 #Collect sites info
 $sites = Get-CsSite | Select-Object Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Gateways
-$pools = Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director"
+#$pools = Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director" | `
+	Select-Object *,@{l='Name';e={$_.Fqdn}},ConfMediaPorts,MedMediaPorts,isConfServer,isMedServer,isQoSHtmlProcessed
 
 #Stop CS collect time
 $StepStopWatch.Stop()
@@ -263,7 +265,7 @@ $globalSummary."RCC Users" = ($users | Where-Object {$_.Enabled -eq $true -and $
 $globalSummary."Analog" = $analogDevices.Count
 $globalSummary."Common Area" = $commonAreaPhones.Count
 $globalSummary.RGS = $rgsWorkflows.Count
-$globalSummary.Pools = $csPools.Count
+$globalSummary.Pools = ($csPools | Where-Object Services -match "Registrar").Count
 $globalSummary.Gateways = $csGateways.Count
 
 
@@ -276,7 +278,7 @@ $globalSummary.Gateways = $csGateways.Count
 foreach ($site in $sites){
 	$sitePools = $pools | `
 		Where-Object {$_.Site -eq $site.Identity} | `
-		Select-Object @{l='Name';e={$_.Fqdn}},Services,Users,"Voice Users","RCC Users"
+		Select-Object @{l='Name';e={$_.Fqdn}},Services,Users,"Voice Users","RCC Users",ConfMediaPorts,MedMediaPorts,isConfServer,isMedServer,isQoSHtmlProcessed
 	$site.Users = 0
 	$site."Voice Users" = 0
 	$site."RCC Users" = 0
@@ -288,12 +290,30 @@ foreach ($site in $sites){
 	$siteInfoItems = @()
 	
 	#If pools exist in site, process pools for servers
-	if ($sitePools){
+	if ($csPools | Where-Object Site -eq $site.Identity){
 		#Process pools in site
-		foreach ($pool in $sitePools){
+		foreach ($pool in ($csPools | Where-Object Site -eq $site.Identity)){
 			$pool.Users = ($users | Where-Object {$_.Enabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
 			$pool."Voice Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
 			$pool."RCC Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
+			
+			$pool.isConfServer = Get-CsService -PoolFqdn $pool.Name -ConferencingServer
+			$pool.isMedServer = Get-CsService -PoolFqdn $pool.Name -MediationServer
+			
+			if ($pool.isConfServer){
+				$pool.ConfMediaPorts = Get-CsService -PoolFqdn $pool.Name -ConferencingServer | `
+					Select-Object @{l='Audio Port Start';e={$_.AudioPortStart}},`
+					@{l='Audio Port End';e={$_.AudioPortStart + $_.AudioPortCount}},`
+					@{l='Video Port Start';e={$_.VideoPortStart}},`
+					@{l='Video Port End';e={$_.VideoPortStart + $_.VideoPortCount}},`
+					@{l='App Sharing Port Start';e={$_.AppSharingPortStart}},`
+					@{l='App Sharing Port End';e={$_.AppSharingPortStart + $_.AppSharingCount}}
+			}
+			if ($pool.isMedServer){
+				$pool.MedMediaPorts = Get-CsService -PoolFqdn $pool.Name -MediationServer | `
+					Select-Object @{l='Audio Port Start';e={$_.AudioPortStart}},`
+					@{l='Audio Port End';e={$_.AudioPortStart + $_.AudioPortCount}}
+			}
 			
 			$site.Users = $site.Users + $pool.Users
 			$site."Voice Users" = $site."Voice Users" + $pool."Voice Users"
@@ -771,7 +791,26 @@ foreach ($site in $sites){
 				
 				#Server QoS policy table for QoS tab
 				if ($server.QoSPolicies){
-					$htmlQoSTable += "<h2>$($server.Server)</h2>`n
+					foreach ($pool in $csPools){
+						if ($pool.Computers -match $server.Server -and $pool.isQoSHtmlProcessed -ne $true){
+							if ($pool.isConfServer -or $pool.isMedServer){
+								$htmlQoSTable += "<h2>$($pool.Name)</h2>`n"
+							}
+						
+							if ($pool.isConfServer){
+								$htmlQoSTable += "<h3>Conferencing</h3>`n
+									<p>$($pool.ConfMediaPorts | ConvertTo-Html -Fragment)</p>"
+							}
+							if ($pool.isMedServer){
+								$htmlQoSTable += "<h3>Mediation</h3>`n
+									<p>$($pool.MedMediaPorts | ConvertTo-Html -Fragment)</p>"
+							}
+							
+							$pool.isQoSHtmlProcessed = $true
+						}
+					}
+					
+					$htmlQoSTable += "<h3>$($server.Server)</h3>`n
 						<p>$($server.QoSPolicies | ConvertTo-Html -As Table -Fragment)</p>"
 				}
 				
@@ -833,7 +872,7 @@ foreach ($site in $sites){
 		
 		#Convert site header, site summary, and site server summary to HTML and combine with body
 		$csSiteHtmlTab += "<h3>$($Site.Name)</h3>
-			<p>$($site | Select-Object * -ExcludeProperty Identity,Name | ConvertTo-Html -As Table -Fragment)</p>
+			<p>$($site | Select-Object * -ExcludeProperty Identity,Name,MediaPorts | ConvertTo-Html -As Table -Fragment)</p>
 			<p>
 			<table class=`"csservers`">
 			<tr>
@@ -896,166 +935,168 @@ foreach ($site in $sites){
 		
 		#Create Servers tab
 		$serversHtmlTab = "<div class=`"tab-content`">
-			<p>Servers</p>
+			<p>Under construction...</p>
 			</br>
 			</div>`n"
-
 			
+	}
+}
+
 ##############################################################################################################
 ##                                                                                                          ##
 ##                                     Process voice configurations                                         ##
 ##                                                                                                          ##
 ##############################################################################################################
 
-		#Create Voice tab
-		#Process dial plans
-		$csDialPlans = Get-CsDialPlan
-		$csDialPlansHtmlTable = $null
-		foreach ($dialPlan in $csDialPlans){
-			$csDialPlansHtmlTable += `
-			"<h3>$($dialPlan.Identity)</h3>`n
-			<table class=`"csservers`">`n
-			<tr><td>Simple name:</td><td>$($dialPlan.SimpleName)</td></tr>`n
-			<tr><td>Description:</td><td>$($dialPlan.Description)</td></tr>`n
-			<tr><td>Dial-in conferencing region:</td><td>$($dialPlan.DialinConferenceRegion)</td></tr>`n
-			<tr><td>External access prefix:</td><td>$($dialPlan.ExternalAccessPrefix)</td></tr>`n
-			</table>
-			</br>
-			<b>Normalization Rules</b></br>
-			$($dialPlan.NormalizationRules | select Name,Description,Pattern,Translation,IsInternalExtension | ConvertTo-Html -Fragment)
-			</br>`n"
+#Create Voice tab
+#Process dial plans
+$csDialPlans = Get-CsDialPlan
+$csDialPlansHtmlTable = $null
+foreach ($dialPlan in $csDialPlans){
+	$csDialPlansHtmlTable += `
+	"<h3>$($dialPlan.Identity)</h3>`n
+	<table class=`"csservers`">`n
+	<tr><td>Simple name:</td><td>$($dialPlan.SimpleName)</td></tr>`n
+	<tr><td>Description:</td><td>$($dialPlan.Description)</td></tr>`n
+	<tr><td>Dial-in conferencing region:</td><td>$($dialPlan.DialinConferenceRegion)</td></tr>`n
+	<tr><td>External access prefix:</td><td>$($dialPlan.ExternalAccessPrefix)</td></tr>`n
+	</table>
+	</br>
+	<b>Normalization Rules</b></br>
+	$($dialPlan.NormalizationRules | select Name,Description,Pattern,Translation,IsInternalExtension | ConvertTo-Html -Fragment)
+	</br>`n"
+}
+
+#Process voice policies
+$csVoicePolicies = Get-CsVoicePolicy
+$csVoicePoliciesHtmlTable = $null
+foreach ($voicePolicy in $csVoicePolicies){
+	$csVoicePolicyUsagelist = $null
+	if ($voicePolicy.PstnUsages -match "[a-z|0-9]"){
+		foreach ($usage in $voicePolicy.PstnUsages){
+			$csVoicePolicyUsagelist += "<li>$usage</li>`n"
 		}
-		
-		#Process voice policies
-		$csVoicePolicies = Get-CsVoicePolicy
-		$csVoicePoliciesHtmlTable = $null
-		foreach ($voicePolicy in $csVoicePolicies){
-			$csVoicePolicyUsagelist = $null
-			if ($voicePolicy.PstnUsages -match "[a-z|0-9]"){
-				foreach ($usage in $voicePolicy.PstnUsages){
-					$csVoicePolicyUsagelist += "<li>$usage</li>`n"
-				}
-			}else{
-				$csVoicePolicyUsagelist += "<li>No usages</li>`n"
-			}
-			$csVoicePoliciesHtmlTable += `
-				"<h3>$($voicePolicy.Identity)</h3>`n
-				<table class=`"csservers`">`n
-				<tr>
-				<th width=`"200`">Parameter</th>
-				<th width=`"200`">Value</th>
-				</tr>"
-			$csVoicePoliciesHtmlTable += "<tr><td>Description:</td><td>$($voicePolicy.Description)</td></tr>`n
-				<tr><td>Enable call forwarding</td><td>"
-			if ($voicePolicy.AllowCallForwarding -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowCallForwarding)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowCallForwarding)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable delegation</td><td>"
-			if ($voicePolicy.EnableDelegation -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableDelegation)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableDelegation)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable call transfer</td><td>"
-			if ($voicePolicy.EnableCallTransfer -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableCallTransfer)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableCallTransfer)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable call park</td><td>"
-			if ($voicePolicy.EnableCallPark -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableCallPark)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableCallPark)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable simultaneous ring</td><td>"
-			if ($voicePolicy.AllowSimulRing -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowSimulRing)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowSimulRing)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Call forwarding and simultaneous ringing PSTN usages</td><td>"
-			if ($voicePolicy.CallForwardingSimulRingUsageType -ne "VoicePolicyUsage"){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.CallForwardingSimulRingUsageType)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.CallForwardingSimulRingUsageType)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable team call</td><td>"
-			if ($voicePolicy.EnableTeamCall -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableTeamCall)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableTeamCall)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable PSTN reroute</td><td>"
-			if ($voicePolicy.AllowPSTNReRouting -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowPSTNReRouting)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowPSTNReRouting)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable bandwidth policy override</td><td>"
-			if ($voicePolicy.EnableBWPolicyOverride -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableBWPolicyOverride)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableBWPolicyOverride)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable malicious call tracing</td><td>"
-			if ($voicePolicy.EnableMaliciousCallTracing -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableMaliciousCallTracing)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableMaliciousCallTracing)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>Enable busy options</td><td>"
-			if ($voicePolicy.EnableBusyOptions -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableBusyOptions)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableBusyOptions)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>EnableVoicemailEscapeTimer</td><td>"
-			if ($voicePolicy.EnableVoicemailEscapeTimer -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableVoicemailEscapeTimer)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableVoicemailEscapeTimer)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				<tr><td>PSTNVoicemailEscapeTimer</td><td>"
-			if ($voicePolicy.PSTNVoicemailEscapeTimer -ne "4000"){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.PSTNVoicemailEscapeTimer)</b>"}
-				else{$csVoicePoliciesHtmlTable += "$($voicePolicy.PSTNVoicemailEscapeTimer)"}
-			$csVoicePoliciesHtmlTable += "</td></tr>`n
-				</table>
-				</br>
-				<b>PSTN Usages</b></br>
-				<ol>
-					$csVoicePolicyUsagelist
-				</ol>
-				</br>`n"
-		}
-		
-		
-		#Process routes
-		$csPstnUsages = Get-CsPstnUsage
-		$csVoiceRoutes = Get-CsVoiceRoute
-		$csVoiceRoutesList = ($csVoiceRoutes | select Name,Description,Priority,PstnUsages,PstnGatewayList,NumberPattern,SupressCallerId,AlternateCallerId | ConvertTo-Html -Fragment)
-		
-		
-		#Process PSTN usages
-		$csPstnUsagesList = $null
-		foreach ($usage in $csPstnUsages){
-			$csPstnUsagesList += "<h3>$usage</h3>`n"
+	}else{
+		$csVoicePolicyUsagelist += "<li>No usages</li>`n"
+	}
+	$csVoicePoliciesHtmlTable += `
+		"<h3>$($voicePolicy.Identity)</h3>`n
+		<table class=`"csservers`">`n
+		<tr>
+		<th width=`"200`">Parameter</th>
+		<th width=`"200`">Value</th>
+		</tr>"
+	$csVoicePoliciesHtmlTable += "<tr><td>Description:</td><td>$($voicePolicy.Description)</td></tr>`n
+		<tr><td>Enable call forwarding</td><td>"
+	if ($voicePolicy.AllowCallForwarding -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowCallForwarding)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowCallForwarding)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>Enable delegation</td><td>"
+	if ($voicePolicy.EnableDelegation -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableDelegation)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableDelegation)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>Enable call transfer</td><td>"
+	if ($voicePolicy.EnableCallTransfer -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableCallTransfer)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableCallTransfer)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>Enable call park</td><td>"
+	if ($voicePolicy.EnableCallPark -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableCallPark)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableCallPark)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>Enable simultaneous ring</td><td>"
+	if ($voicePolicy.AllowSimulRing -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowSimulRing)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowSimulRing)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>Call forwarding and simultaneous ringing PSTN usages</td><td>"
+	if ($voicePolicy.CallForwardingSimulRingUsageType -ne "VoicePolicyUsage"){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.CallForwardingSimulRingUsageType)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.CallForwardingSimulRingUsageType)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>Enable team call</td><td>"
+	if ($voicePolicy.EnableTeamCall -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableTeamCall)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableTeamCall)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>Enable PSTN reroute</td><td>"
+	if ($voicePolicy.AllowPSTNReRouting -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowPSTNReRouting)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowPSTNReRouting)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>Enable bandwidth policy override</td><td>"
+	if ($voicePolicy.EnableBWPolicyOverride -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableBWPolicyOverride)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableBWPolicyOverride)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>Enable malicious call tracing</td><td>"
+	if ($voicePolicy.EnableMaliciousCallTracing -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableMaliciousCallTracing)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableMaliciousCallTracing)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>Enable busy options</td><td>"
+	if ($voicePolicy.EnableBusyOptions -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableBusyOptions)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableBusyOptions)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>EnableVoicemailEscapeTimer</td><td>"
+	if ($voicePolicy.EnableVoicemailEscapeTimer -ne $false){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.EnableVoicemailEscapeTimer)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.EnableVoicemailEscapeTimer)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		<tr><td>PSTNVoicemailEscapeTimer</td><td>"
+	if ($voicePolicy.PSTNVoicemailEscapeTimer -ne "4000"){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.PSTNVoicemailEscapeTimer)</b>"}
+		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.PSTNVoicemailEscapeTimer)"}
+	$csVoicePoliciesHtmlTable += "</td></tr>`n
+		</table>
+		</br>
+		<b>PSTN Usages</b></br>
+		<ol>
+			$csVoicePolicyUsagelist
+		</ol>
+		</br>`n"
+}
+
+
+#Process routes
+$csPstnUsages = Get-CsPstnUsage
+$csVoiceRoutes = Get-CsVoiceRoute
+$csVoiceRoutesList = ($csVoiceRoutes | select Name,Description,Priority,PstnUsages,PstnGatewayList,NumberPattern,SupressCallerId,AlternateCallerId | ConvertTo-Html -Fragment)
+
+
+#Process PSTN usages
+$csPstnUsagesList = $null
+foreach ($usage in $csPstnUsages){
+	$csPstnUsagesList += "<h3>$usage</h3>`n"
+	
+	$csPstnUsagesList += ($csVoiceRoutes | where PstnUsages -match $usage | select Name,Description,Priority | ConvertTo-Html -Fragment)
+}
+
+
+
+$voiceHtmlTab = `
+	"<div class=`"tab-content`">
+		<div class=`"tab-wrap`">
+			<input type=`"radio`" id=`"voicetab1`" name=`"tabGroup2`" class=`"tab`" checked>
+			<label for=`"voicetab1`">Dial Plan</label>
+
+			<input type=`"radio`" id=`"voicetab2`" name=`"tabGroup2`" class=`"tab`">
+			<label for=`"voicetab2`">Voice Policy</label>
 			
-			$csPstnUsagesList += ($csVoiceRoutes | where PstnUsages -match $usage | select Name,Description,Priority | ConvertTo-Html -Fragment)
-		}
-		
-		
-		
-		$voiceHtmlTab = `
-			"<div class=`"tab-content`">
-				<div class=`"tab-wrap`">
-					<input type=`"radio`" id=`"voicetab1`" name=`"tabGroup2`" class=`"tab`" checked>
-					<label for=`"voicetab1`">Dial Plan</label>
+			<input type=`"radio`" id=`"voicetab3`" name=`"tabGroup2`" class=`"tab`">
+			<label for=`"voicetab3`">Route</label>
 
-					<input type=`"radio`" id=`"voicetab2`" name=`"tabGroup2`" class=`"tab`">
-					<label for=`"voicetab2`">Voice Policy</label>
-					
-					<input type=`"radio`" id=`"voicetab3`" name=`"tabGroup2`" class=`"tab`">
-					<label for=`"voicetab3`">Route</label>
-
-					<input type=`"radio`" id=`"voicetab4`" name=`"tabGroup2`" class=`"tab`">
-					<label for=`"voicetab4`">PSTN Usage</label>
-					
-					<input type=`"radio`" id=`"voicetab5`" name=`"tabGroup2`" class=`"tab`">
-					<label for=`"voicetab5`">Trunk Configuration</label>
-					
-					<div class=`"tab-content`">
-						$csDialPlansHtmlTable
-					</div>
-					<div class=`"tab-content`">
-						$csVoicePoliciesHtmlTable
-					</div>
-					<div class=`"tab-content`">
-						$csVoiceRoutesList
-					</div>
-					<div class=`"tab-content`">
-						$csPstnUsagesList
-					</div>
-				</div>
-			</div>`n"
+			<input type=`"radio`" id=`"voicetab4`" name=`"tabGroup2`" class=`"tab`">
+			<label for=`"voicetab4`">PSTN Usage</label>
+			
+			<input type=`"radio`" id=`"voicetab5`" name=`"tabGroup2`" class=`"tab`">
+			<label for=`"voicetab5`">Trunk Configuration</label>
+			
+			<div class=`"tab-content`">
+				$csDialPlansHtmlTable
+			</div>
+			<div class=`"tab-content`">
+				$csVoicePoliciesHtmlTable
+			</div>
+			<div class=`"tab-content`">
+				$csVoiceRoutesList
+			</div>
+			<div class=`"tab-content`">
+				$csPstnUsagesList
+			</div>
+		</div>
+	</div>`n"
 
 
 ##############################################################################################################
@@ -1063,19 +1104,21 @@ foreach ($site in $sites){
 ##                                     Process QoS configurations                                           ##
 ##                                                                                                          ##
 ##############################################################################################################
-		
-		#Create QoS tab
-		$qosHtmlTab = "<div class=`"tab-content`">
-			$htmlQoSTable
-			</div>`n"
-			
-		#Create best practices tab
-		$bpHtmlTab = "<div class=`"tab-content`">
-			<p>Best Practices</p>
-			</br>
-			</div>`n"
-	}
-}
+
+#Create QoS tab
+$qosHtmlTab = "<div class=`"tab-content`">
+	<h2>Get-CsMediaConfiguration</h2>
+	<p>$(Get-CsMediaConfiguration | Select-Object Identity,EnableQoS,EnableSiren,MaxVideoRateAllowed,EnableInCallQoS,InCallQoSIntervalSeconds | ConvertTo-Html -Fragment)</p>
+	<h2>Get-CsUcPhoneConfiguration</h2>
+	<p>$(Get-CsUcPhoneConfiguration | Select-Object Identity,VoiceDiffServTag,Voice8021p | ConvertTo-Html -Fragment)</p>
+	$htmlQoSTable
+	</div>`n"
+	
+#Create best practices tab
+$bpHtmlTab = "<div class=`"tab-content`">
+	<p>Best Practices</p>
+	</br>
+	</div>`n"
 
 
 ##############################################################################################################
