@@ -278,7 +278,7 @@ $globalSummary.Gateways = $csGateways.Count
 ##############################################################################################################
 
 foreach ($site in $sites){
-	$sitePools = $pools | `
+	#$sitePools = $pools | `
 		Where-Object {$_.Site -eq $site.Identity} | `
 		Select-Object @{l='Name';e={$_.Fqdn}},Services,Users,"Voice Users","RCC Users",ConfMediaPorts,MedMediaPorts,isConfServer,isMedServer,isQoSHtmlProcessed
 	$site.Users = 0
@@ -874,7 +874,7 @@ foreach ($site in $sites){
 		
 		#Convert site header, site summary, and site server summary to HTML and combine with body
 		$csSiteHtmlTab += "<h3>$($Site.Name)</h3>
-			<p>$($site | Select-Object * -ExcludeProperty Identity,Name,MediaPorts | ConvertTo-Html -As Table -Fragment)</p>
+			<p>$($site | Select-Object * -ExcludeProperty Identity,Name | ConvertTo-Html -As Table -Fragment)</p>
 			<p>
 			<table class=`"csservers`">
 			<tr>
@@ -965,7 +965,7 @@ foreach ($dialPlan in $csDialPlans){
 	</table>
 	</br>
 	<b>Normalization Rules</b></br>
-	$($dialPlan.NormalizationRules | select Name,Description,Pattern,Translation,IsInternalExtension | ConvertTo-Html -Fragment)
+	$($dialPlan.NormalizationRules | Select-Object Name,Description,Pattern,Translation,IsInternalExtension | ConvertTo-Html -Fragment)
 	</br>`n"
 }
 
@@ -1054,7 +1054,7 @@ foreach ($voicePolicy in $csVoicePolicies){
 #Process routes
 $csPstnUsages = Get-CsPstnUsage
 $csVoiceRoutes = Get-CsVoiceRoute
-$csVoiceRoutesList = ($csVoiceRoutes | select Name,Description,Priority,PstnUsages,PstnGatewayList,NumberPattern,SupressCallerId,AlternateCallerId | ConvertTo-Html -Fragment)
+$csVoiceRoutesList = ($csVoiceRoutes | Select-Object Name,Description,Priority,PstnUsages,PstnGatewayList,NumberPattern,SupressCallerId,AlternateCallerId | ConvertTo-Html -Fragment)
 
 
 #Process PSTN usages
@@ -1062,7 +1062,7 @@ $csPstnUsagesList = $null
 foreach ($usage in $csPstnUsages){
 	$csPstnUsagesList += "<h3>$usage</h3>`n"
 	
-	$csPstnUsagesList += ($csVoiceRoutes | where PstnUsages -match $usage | select Name,Description,Priority | ConvertTo-Html -Fragment)
+	$csPstnUsagesList += ($csVoiceRoutes | Where-Object PstnUsages -match $usage | Select-Object Name,Description,Priority | ConvertTo-Html -Fragment)
 }
 
 
