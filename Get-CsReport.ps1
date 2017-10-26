@@ -221,7 +221,7 @@ $rgsWorkflows = Get-CsRgsWorkflow | Where-Object Active -eq $true
 
 #Collect CS pools
 #$csPools = Get-CsPool | Where-Object Services -match "Registrar"
-$csPools = Get-CsPool | Select-Object *,@{l='Name';e={$_.Fqdn}},Users,"Voice Users","RCC Users",ConfMediaPorts,MedMediaPorts,isConfServer,isMedServer,isQoSHtmlProcessed
+$csPools = Get-CsPool | Select-Object *,@{l='Name';e={$_.Fqdn}},Users,VoiceUsers,RccUsers,ConfMediaPorts,MedMediaPorts,isConfServer,isMedServer,isQoSHtmlProcessed
 
 #Collect CS gateways
 $csGateways = Get-CsService -PstnGateway
@@ -239,7 +239,7 @@ $csSummary.DialinUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandPrope
 $csSummary.AdminUrl = Get-CsSimpleUrlConfiguration | Select-Object -ExpandProperty SimpleUrl | Where-Object {$_.Component -eq "cscp"}
 
 #Collect sites info
-$sites = Get-CsSite | Select-Object Identity,@{l='Name';e={$_.DisplayName}},Users,"Voice Users","RCC Users",Pools,Gateways
+$sites = Get-CsSite | Select-Object Identity,@{l='Name';e={$_.DisplayName}},Users,VoiceUsers,RccUsers,Pools,Gateways
 #$pools = Get-CsPool | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director" | `
 	Select-Object *,@{l='Name';e={$_.Fqdn}},ConfMediaPorts,MedMediaPorts,isConfServer,isMedServer,isQoSHtmlProcessed
 
@@ -256,16 +256,17 @@ if ($Timing){
 }
 
 #Create global user summary table and populate
-$globalSummary = "" | Select-Object Sites,Users,"Address Mismatch","AD Disabled","Admin Users","Voice Users","RCC Users","Analog","Common Area",RGS,Pools,Gateways
+#$globalSummary = "" | Select-Object Sites,Users,"Address Mismatch","AD Disabled","Admin Users","Voice Users","RCC Users","Analog","Common Area",RGS,Pools,Gateways
+$globalSummary = "" | Select-Object Sites,Users,AddressMismatch,AdDisabled,AdminUsers,VoiceUsers,RccUsers,Analog,CommonArea,RGS,Pools,Gateways
 $globalSummary.Sites = $csSites.Count
 $globalSummary.Users = ($users | Where-Object {$_.Enabled -eq $true}).Count
-$globalSummary."Address Mismatch" = $addressMismatchUsers.Count
-$globalSummary."AD Disabled" = $disabledAdUsers.Count
-$globalSummary."Admin Users" = $adminUsers.Count
-$globalSummary."Voice Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true}).Count
-$globalSummary."RCC Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true}).Count
-$globalSummary."Analog" = $analogDevices.Count
-$globalSummary."Common Area" = $commonAreaPhones.Count
+$globalSummary.AddressMismatch = $addressMismatchUsers.Count
+$globalSummary.AdDisabled = $disabledAdUsers.Count
+$globalSummary.AdminUsers = $adminUsers.Count
+$globalSummary.VoiceUsers = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true}).Count
+$globalSummary.RccUsers = ($users | Where-Object {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true}).Count
+$globalSummary.Analog = $analogDevices.Count
+$globalSummary.CommonArea = $commonAreaPhones.Count
 $globalSummary.RGS = $rgsWorkflows.Count
 $globalSummary.Pools = ($csPools | Where-Object Services -match "Registrar").Count
 $globalSummary.Gateways = $csGateways.Count
@@ -282,8 +283,8 @@ foreach ($site in $sites){
 		Where-Object {$_.Site -eq $site.Identity} | `
 		Select-Object @{l='Name';e={$_.Fqdn}},Services,Users,"Voice Users","RCC Users",ConfMediaPorts,MedMediaPorts,isConfServer,isMedServer,isQoSHtmlProcessed
 	$site.Users = 0
-	$site."Voice Users" = 0
-	$site."RCC Users" = 0
+	$site.VoiceUsers = 0
+	$site.RccUsers = 0
 	$site.Pools = (Get-CsPool | Where-Object {$_.Services -match "Registrar" -and $_.Site -eq $site.Identity}).Count
 	$site.Gateways = (Get-CsService -PstnGateway | Where-Object SiteId -eq $site.Identity).Count
 	$siteServers = @()
@@ -296,8 +297,8 @@ foreach ($site in $sites){
 		#Process pools in site
 		foreach ($pool in ($csPools | Where-Object Site -eq $site.Identity)){
 			$pool.Users = ($users | Where-Object {$_.Enabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
-			$pool."Voice Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
-			$pool."RCC Users" = ($users | Where-Object {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
+			$pool.VoiceUsers = ($users | Where-Object {$_.Enabled -eq $true -and $_.EnterpriseVoiceEnabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
+			$pool.RccUsers = ($users | Where-Object {$_.Enabled -eq $true -and $_.RemoteCallControlTelephonyEnabled -eq $true -and $_.RegistrarPool -match $pool.Name}).Count
 			
 			$pool.isConfServer = Get-CsService -PoolFqdn $pool.Name -ConferencingServer
 			$pool.isMedServer = Get-CsService -PoolFqdn $pool.Name -MediationServer
@@ -318,10 +319,11 @@ foreach ($site in $sites){
 			}
 			
 			$site.Users = $site.Users + $pool.Users
-			$site."Voice Users" = $site."Voice Users" + $pool."Voice Users"
-			$site."RCC Users" = $site."RCC Users" + $pool."RCC Users"
+			$site.VoiceUsers = $site.VoiceUsers + $pool.VoiceUsers
+			$site.RccUsers = $site.RccUsers + $pool.RccUsers
 			
-			$servers = (Get-CsPool $pool.Name).Computers | Select-Object `
+			$servers = (Get-CsPool $pool.Name | Where-Object Services -match "Registrar|PersistentChatServer|MediationServer|Director").Computers | `
+				Select-Object `
 				@{label='Site';expression={$site.Identity}},`
 				Pool,`
 				@{label='Server';expression={$_}},`
@@ -338,6 +340,7 @@ foreach ($site in $sites){
 				Uptime,`
 				OS,`
 				DotNet,`
+				DotNetEKUCheckIgnored,`
 				Certs,`
 				CACerts,`
 				QoSStatus,`
@@ -491,6 +494,9 @@ foreach ($site in $sites){
 						return Get-ChildItem -Path HKLM:\Software\Policies\Microsoft\Windows\QoS | ForEach-Object {Get-ItemProperty $_.PSPath}
 					}
 					
+					#Variable for QoS status for modalities
+					$qosStatus = "" | Select-Object AudioConf,VideoConf,AudioMed
+					
 					if ($qosRegPolicies){
 						#Normalize QoS v1.0 registry entries
 						$qosPolicies = @()
@@ -533,8 +539,6 @@ foreach ($site in $sites){
 						$server.QoSPolicies = $qosPolicies
 						
 						#Evaluate QoS policies
-						$qosStatus = "" | Select-Object AudioConf,AudioMed,Video,AppShare,Signaling
-						
 						if ($isConfServer){
 							#Check for audio QoS policies
 							if ($qosPolicies | Where-Object DSCP -match 46 | Where-Object SrcPortLow -match $isConfServer.AudioPortStart | Where-Object SrcPortHigh -match ($isConfServer.AudioPortStart + $isConfServer.AudioPortCount)){
@@ -545,17 +549,10 @@ foreach ($site in $sites){
 							
 							#Check for video QoS policies
 							if ($qosPolicies | Where-Object DSCP -match 34 | Where-Object SrcPortLow -match $isConfServer.VideoPortStart | Where-Object SrcPortHigh -match ($isConfServer.VideoPortStart + $isConfServer.VideoPortCount)){
-								$qosStatus.Video = $true
+								$qosStatus.VideoConf = $true
 							}else{
-								$qosStatus.Video = $false
+								$qosStatus.VideoConf = $false
 							}
-							
-							#Check for appshare QoS policies
-						<# 	if ($qosPolicies | Where-Object DSCP -match 18 | Where-Object SrcPortLow -match $isConfServer.AppSharingPortStart | Where-Object SrcPortHigh -match ($isConfServer.AppSharingPortStart + $isConfServer.AppSharingPortCount)){
-								$qosStatus.AppShare = $true
-							}else{
-								$qosStatus.AppShare = $false
-							} #>
 						}
 						if ($isMedServer){
 							#Check for audio QoS policy for mediation
@@ -568,17 +565,34 @@ foreach ($site in $sites){
 					}else{
 						#No QoS Policies found
 						$qosStatus.AudioConf = $false
+						$qosStatus.VideoConf = $false
 						$qosStatus.AudioMed = $false
-						$qosStatus.Video = $false
-						$qosStatus.AppShare = $false
-						$qosStatus.Signaling = $false
 					}
 					
+					#Output status information to global variable
 					$server.QoSStatus = $qosStatus
 					
 					#Get .NET Framework
 					$server.DotNet = Invoke-Command -ComputerName $server.Server -ScriptBlock {(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release").Release}
 					$server.DotNet = $VersionHashNDP.Item($server.DotNet)
+					
+					#Check .NET Framework client EKU check
+					
+					if ($server.Version -match "6.0|5.0"){
+						$dotNetEKUCheckIgnored = Invoke-Command -ComputerName $server.Server -ScriptBlock {
+							if (Get-HotFix KB4014514,KB401511,KB4014508,KB4014513,KB4014509,KB4014506,KB4014510,KB4014512,KB4014507,KB4019472 -ErrorAction SilentlyContinue){
+								return Get-ItemProperty "HKLM:\Software\Microsoft\.NETFramework\v4.0.30319\System.Net.ServicePointManager.RequireCertificateEKUs" | Get-Item | Select-Object * -ExpandProperty Property
+							}
+						}
+						if ($dotNetEKUCheckIgnored -match "DATAMCUSVC.exe"){$server.DotNetEKUCheckIgnored = $true}
+					}else{
+						$dotNetEKUCheckIgnored = Invoke-Command -ComputerName $server.Server -ScriptBlock {
+							if (Get-HotFix KB4014514,KB401511,KB4014508,KB4014513,KB4014509,KB4014506,KB4014510,KB4014512,KB4014507,KB4019472 -ErrorAction SilentlyContinue){
+								return Get-ItemProperty "HKLM:\Software\Microsoft\.NETFramework\v2.0.50727\System.Net.ServicePointManager.RequireCertificateEKUs" | Get-Item | Select-Object * -ExpandProperty Property
+							}
+						}
+						if ($dotNetEKUCheckIgnored -match "DATAMCUSVC.exe"){$server.DotNetEKUCheckIgnored = $true}
+					}
 					
 					#Get DNS check
 					if (Resolve-DnsName $server.Server -DnsOnly -Type A -QuickTimeout){
@@ -736,6 +750,12 @@ foreach ($site in $sites){
 					$htmlTableRow += "<td>$($server.DotNet)</td>`n"
 				}
 				
+				if (!$server.DotNetEKUCheckIgnored -and ($server.Role -match "Front End")){
+					$siteInfoItems += "<li>One or more servers may have issues with PowerPoint presentations, Q&A, or whiteboarding due to .NET Framework May 2017 Security and Quality Rollup. See `
+						<a href='https://support.microsoft.com/en-us/help/4023993/ls-data-mcu-events-41025-and-41026-are-constantly-generated-after-you' `
+						target='_blank'>KB4023993</a> for more information.</li>`n"
+				}
+				
 				#Column server certificate status and certificate warnings
 				$certStatus = "" | Select-Object Expiration,SignatureAlgorithm,NotFoundOrUntrusted
 				if ($server.Certs.NotAfter -lt (Get-Date).AddDays(30)){
@@ -793,12 +813,11 @@ foreach ($site in $sites){
 				
 				#Server QoS policy table for QoS tab
 				if ($server.QoSPolicies){
-					foreach ($pool in $csPools){
-						if ($pool.Computers -match $server.Server -and $pool.isQoSHtmlProcessed -ne $true){
+					foreach ($pool in ($csPools| Where-Object Computers -match $server.Server)){
+						if ($pool.isQoSHtmlProcessed -ne $true){
 							if ($pool.isConfServer -or $pool.isMedServer){
 								$htmlQoSTable += "<h2>$($pool.Name)</h2>`n"
 							}
-						
 							if ($pool.isConfServer){
 								$htmlQoSTable += "<h3>Conferencing</h3>`n
 									<p>$($pool.ConfMediaPorts | ConvertTo-Html -Fragment)</p>"
@@ -813,7 +832,13 @@ foreach ($site in $sites){
 					}
 					
 					$htmlQoSTable += "<h3>$($server.Server)</h3>`n
-						<p>$($server.QoSPolicies | ConvertTo-Html -As Table -Fragment)</p>"
+						<p>$($server.QoSPolicies | Select-Object Name,Version,AppName,`
+							@{l='Protocol';e={
+								if ($_.Protocol -eq 3){"Both"}
+								elseif($_.Protocol -eq 2){"UDP"}
+								elseif($_.Protocol -eq 1){"TCP"}
+							}},SrcIP,SrcIPPrefix,SrcPortLow,SrcPortHigh,DstIP,DstIPPrefix,DstPortLow,DstPortHigh,DSCP | `
+							ConvertTo-Html -As Table -Fragment)</p>"
 				}
 				
 				#Column DNS check and DNS check warning
@@ -874,7 +899,7 @@ foreach ($site in $sites){
 		
 		#Convert site header, site summary, and site server summary to HTML and combine with body
 		$csSiteHtmlTab += "<h3>$($Site.Name)</h3>
-			<p>$($site | Select-Object * -ExcludeProperty Identity,Name | ConvertTo-Html -As Table -Fragment)</p>
+			<p>$($site | Select-Object Users,@{l='Voice Users';e={$_.VoiceUsers}},@{l='RCC Users';e={$_.RccUsers}},Pools,Gateways | ConvertTo-Html -As Table -Fragment)</p>
 			<p>
 			<table class=`"csservers`">
 			<tr>
@@ -1527,20 +1552,22 @@ $csTopologyHtml = "<p>$cmsHtml
 
 #Global Summary
 $csSummaryHtml = "<p><b>Summary:</b>
-	$($globalSummary | ConvertTo-Html -As Table -Fragment)</p>"
+	$($globalSummary | `
+		Select-Object Sites,Users,@{l='Address Mismatch';e={$_.AddressMismatch}},@{l='AD Disabled';e={$_.AdDisabled}},@{l='Admin Users';e={$_.AdminUsers}},@{l='Voice Users';e={$_.VoiceUsers}},@{l='RCC Users';e={$_.RccUsers}},Analog,@{l='Common Area';e={$_.CommonArea}},RGS,Pools,Gateways | `
+		ConvertTo-Html -As Table -Fragment)</p>"
 
 #Generate messages
-if ($globalSummary."Address Mismatch" -gt 0){
+if ($globalSummary.AddressMismatch -gt 0){
 	$globalWarnItems += "<li>Users exist whose SIP address and primary STMP addresses do not match. `
 		This will cause Exchange integration issues for these users. `
 		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#address-mismatch' target='_blank'>Address Mismatch</a>.</li>`n"
 }
-if ($globalSummary."AD Disabled" -gt 0){
+if ($globalSummary.AdDisabled -gt 0){
 	$globalWarnItems += "<li>Users exist that are disabled in AD but are enabled for Skype4B. `
 		These users may still be able to login to Skype4B. `
 		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests/_edit#ad-disabled' target='_blank'>AD Disabled</a>.</li>`n"
 }
-if ($globalSummary."Admin Users" -gt 0){
+if ($globalSummary.AdminUsers -gt 0){
 	$globalInfoItems += "<li>Users exist with adminCount greater than 0. `
 		Attempts to modify these users Skype4B configurations may fail with access denied. `
 		See <a href='https://github.com/argiesen/Get-CsReport/wiki/User-Tests#admincount-greater-than-0' target='_blank'>adminCount greater than 0</a>.</li>`n"
