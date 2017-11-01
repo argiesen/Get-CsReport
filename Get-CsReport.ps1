@@ -584,14 +584,18 @@ foreach ($site in $sites){
 								return Get-ItemProperty "HKLM:\Software\Microsoft\.NETFramework\v4.0.30319\System.Net.ServicePointManager.RequireCertificateEKUs" | Get-Item | Select-Object * -ExpandProperty Property
 							}
 						}
-						if ($dotNetEKUCheckIgnored -match "DATAMCUSVC.exe"){$server.DotNetEKUCheckIgnored = $true}
+						if ($dotNetEKUCheckIgnored -match "DATAMCUSVC.exe"){
+							$server.DotNetEKUCheckIgnored = $true
+						}
 					}else{
 						$dotNetEKUCheckIgnored = Invoke-Command -ComputerName $server.Server -ScriptBlock {
 							if (Get-HotFix KB4014514,KB401511,KB4014508,KB4014513,KB4014509,KB4014506,KB4014510,KB4014512,KB4014507,KB4019472 -ErrorAction SilentlyContinue){
 								return Get-ItemProperty "HKLM:\Software\Microsoft\.NETFramework\v2.0.50727\System.Net.ServicePointManager.RequireCertificateEKUs" | Get-Item | Select-Object * -ExpandProperty Property
 							}
 						}
-						if ($dotNetEKUCheckIgnored -match "DATAMCUSVC.exe"){$server.DotNetEKUCheckIgnored = $true}
+						if ($dotNetEKUCheckIgnored -match "DATAMCUSVC.exe"){
+							$server.DotNetEKUCheckIgnored = $true
+						}
 					}
 					
 					#Get DNS check
