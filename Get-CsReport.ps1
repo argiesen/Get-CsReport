@@ -987,10 +987,10 @@ foreach ($dialPlan in $csDialPlans){
 	$csDialPlansHtmlTable += `
 	"<h3>$($dialPlan.Identity)</h3>`n
 	<table class=`"csservers`">`n
-	<tr><td>Simple name:</td><td>$($dialPlan.SimpleName)</td></tr>`n
-	<tr><td>Description:</td><td>$($dialPlan.Description)</td></tr>`n
-	<tr><td>Dial-in conferencing region:</td><td>$($dialPlan.DialinConferenceRegion)</td></tr>`n
-	<tr><td>External access prefix:</td><td>$($dialPlan.ExternalAccessPrefix)</td></tr>`n
+	<tr><td>Simple name</td><td>$($dialPlan.SimpleName)</td></tr>`n
+	<tr><td>Description</td><td>$($dialPlan.Description)</td></tr>`n
+	<tr><td>Dial-in conferencing region</td><td>$($dialPlan.DialinConferenceRegion)</td></tr>`n
+	<tr><td>External access prefix</td><td>$($dialPlan.ExternalAccessPrefix)</td></tr>`n
 	</table>
 	</br>
 	<b>Normalization Rules</b></br>
@@ -1017,7 +1017,7 @@ foreach ($voicePolicy in $csVoicePolicies){
 		<th width=`"200`">Parameter</th>
 		<th width=`"200`">Value</th>
 		</tr>"
-	$csVoicePoliciesHtmlTable += "<tr><td>Description:</td><td>$($voicePolicy.Description)</td></tr>`n
+	$csVoicePoliciesHtmlTable += "<tr><td>Description</td><td>$($voicePolicy.Description)</td></tr>`n
 		<tr><td>Enable call forwarding</td><td>"
 	if ($voicePolicy.AllowCallForwarding -ne $true){$csVoicePoliciesHtmlTable += "<b>$($voicePolicy.AllowCallForwarding)</b>"}
 		else{$csVoicePoliciesHtmlTable += "$($voicePolicy.AllowCallForwarding)"}
@@ -1083,17 +1083,47 @@ foreach ($voicePolicy in $csVoicePolicies){
 #Process routes
 $csPstnUsages = Get-CsPstnUsage
 $csVoiceRoutes = Get-CsVoiceRoute
-$csVoiceRoutesList = ($csVoiceRoutes | Select-Object Name,Description,Priority,PstnUsages,PstnGatewayList,NumberPattern,SupressCallerId,AlternateCallerId | ConvertTo-Html -Fragment)
+$csVoiceRoutesList = ($csVoiceRoutes | Select-Object Name,Description,Priority,@{l='PstnUsages';e={$_.PstnUsages | Out-String}},@{l='PstnGatewayList';e={($_.PstnGatewayList -split ":")[2] | Out-String}},NumberPattern,SupressCallerId,AlternateCallerId | `
+	ConvertTo-Html -Fragment)
 
 
 #Process PSTN usages
 $csPstnUsagesList = $null
 foreach ($usage in $csPstnUsages){
-	$csPstnUsagesList += "<h3>$usage</h3>`n"
+	$csPstnUsagesList += "<h3>$($usage.Identity)</h3>`n"
 	
-	$csPstnUsagesList += ($csVoiceRoutes | Where-Object PstnUsages -match $usage | Select-Object Name,Description,Priority | ConvertTo-Html -Fragment)
+	$csPstnUsagesList += ($csVoiceRoutes | Where-Object PstnUsages -match $usage.PstnUsages | Select-Object Name,Description,Priority | ConvertTo-Html -Fragment)
 }
 
+
+#Process trunk configurations
+$csTrunkConfigurations = Get-CsTrunkConfiguration
+$csTrunkConfigurationsHtmlTable = $null
+foreach ($trunkConfig in $csTrunkConfigurations){
+	$csTrunkConfigurationsHtmlTable += `
+	"<h3>$($trunkConfig.Identity)</h3>`n
+	<table class=`"csservers`">`n
+	<tr><td>Description</td><td>$($trunkConfig.Description)</td></tr>`n
+	<tr><td>Enable Bypass</td><td>$($trunkConfig.EnableBypass)</td></tr>`n
+	<tr><td>Enable REFER Support</td><td>$($trunkConfig.EnableReferSupport)</td></tr>`n
+	<tr><td>Enable Session Timer</td><td>$($trunkConfig.EnableSessionTimer)</td></tr>`n
+	<tr><td>RTCP Active Calls</td><td>$($trunkConfig.RTCPActiveCalls)</td></tr>`n
+	<tr><td>RTCP Calls On Hold</td><td>$($trunkConfig.RTCPCallsOnHold)</td></tr>`n
+	<tr><td>SRTP Mode</td><td>$($trunkConfig.SRTPMode)</td></tr>`n
+	<tr><td>Enable PIDFLOS Support</td><td>$($trunkConfig.EnablePIDFLOSupport)</td></tr>`n
+	<tr><td>Forward Call History</td><td>$($trunkConfig.ForwardCallHistory)</td></tr>`n
+	<tr><td>Forward PAI</td><td>$($trunkConfig.ForwardPAI)</td></tr>`n
+	<tr><td>Enable Fast Failover Timer</td><td>$($trunkConfig.EnableFastFailoverTimer)</td></tr>`n
+	</table>
+	</br>
+	<b>PSTN Usages</b></br>
+	$($trunkConfig.PstnUsages | Out-String | ConvertTo-Html -Fragment)</br>
+	<b>Calling Number Translation rules</b></br>
+	$($trunkConfig.OutboundCallingNumberTranslationRulesList | Select-Object Name,Description,Pattern,Translation | ConvertTo-Html -Fragment)</br>
+	<b>Called Number Translation rules</b></br>
+	$($trunkConfig.OutboundTranslationRulesList | Select-Object Name,Description,Pattern,Translation | ConvertTo-Html -Fragment)</br>
+	</br>`n"
+}
 
 
 $voiceHtmlTab = `
@@ -1125,6 +1155,9 @@ $voiceHtmlTab = `
 			</div>
 			<div class=`"tab-content`">
 				$csPstnUsagesList
+			</div>
+			<div class=`"tab-content`">
+				$csTrunkConfigurationsHtmlTable
 			</div>
 		</div>
 	</div>`n"
@@ -1557,8 +1590,8 @@ $csTopologyHtml = "<p>$cmsHtml
 #Global Summary
 $csSummaryHtml = "<p><b>Summary:</b>
 	$($globalSummary | `
-		Select-Object Sites,Users,@{l='Address Mismatch';e={$_.AddressMismatch}},@{l='AD Disabled';e={$_.AdDisabled}},@{l='Admin Users';e={$_.AdminUsers}},@{l='Voice Users';e={$_.VoiceUsers}},@{l='RCC Users';e={$_.RccUsers}},Analog,@{l='Common Area';e={$_.CommonArea}},RGS,Pools,Gateways | `
-		ConvertTo-Html -As Table -Fragment)</p>"
+		Select-Object Sites,Users,@{l='Address Mismatch';e={$_.AddressMismatch}},@{l='AD Disabled';e={$_.AdDisabled}},@{l='Admin Users';e={$_.AdminUsers}},@{l='Voice Users';e={$_.VoiceUsers}},@{l='RCC Users';e={$_.RccUsers}},`
+		Analog,@{l='Common Area';e={$_.CommonArea}},RGS,Pools,Gateways | ConvertTo-Html -As Table -Fragment)</p>"
 
 #Generate messages
 if ($globalSummary.AddressMismatch -gt 0){
