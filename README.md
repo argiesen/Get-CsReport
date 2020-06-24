@@ -8,3 +8,7 @@ You may run this script directly from GitHub with the commands below:
 ```
 Invoke-WebRequest https://raw.githubusercontent.com/argiesen/Get-CsReport/master/Get-CsReport.ps1 -OutFile "$env:Temp\Get-CsReport.ps1"; Invoke-Expression "$env:Temp\Get-CsReport.ps1"
 ```
+Or with
+```
+IEX(New-Object Net.WebClient).downloadString('https://raw.githubusercontent.com/argiesen/Get-CsReport/master/Get-CsReport.ps1')
+```
